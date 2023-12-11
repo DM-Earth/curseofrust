@@ -1,4 +1,4 @@
-use crate::{Player, MAX_PLAYERS};
+use crate::*;
 
 /// 2D array of tiles with width and height
 /// information.
@@ -15,7 +15,7 @@ pub struct Grid {
 
 #[derive(Debug)]
 pub struct ConflictDescriptor<'a> {
-    pub locs: &'a [Loc],
+    pub locs: &'a [Pos],
 
     pub available_locs_num: usize,
     /// Number of starting locations.
@@ -83,31 +83,138 @@ impl Grid {
         let num = locs_num.min(players.len() + ui_players.len());
         let di = fastrand::usize(..available_locs_num);
 
-        let mut chosen_locs = vec![Loc(0, 0); num];
+        let mut chosen_locs = vec![Pos(0, 0); num];
         for (i, loc) in chosen_locs.iter_mut().enumerate() {
             let ii = (i + di + available_locs_num) % available_locs_num;
             *loc = locs[ii];
-            let Loc(x, y) = *loc;
+            let Pos(x, y) = *loc;
             self.tiles[x as usize][y as usize].set_habitable(HabitLand::Fortress);
 
             // Place mines nearby
-            let Loc(ri, rj) = fastrand::choice(Loc::DIRS).unwrap();
+            let Pos(ri, rj) = fastrand::choice(Pos::DIRS).unwrap();
             self.tiles[(x + ri) as usize][(y + rj) as usize] = Tile::Mine(Player::NEUTRAL);
+            self.tiles[(x - 2 * ri) as usize][(y - 2 * rj) as usize] = Tile::Mine(Player::NEUTRAL);
+            self.tiles[(x - ri) as usize][(y - rj) as usize] = Tile::Habitable {
+                land: HabitLand::Grassland,
+                units: [0; 8],
+                owner: Player::NEUTRAL,
+            };
+        }
+
+        let mut eval_result = [0; 7];
+        let loc_index = [0, 1, 2, 3, 4, 5, 6];
+        self.eval_locs(&chosen_locs, &mut eval_result[..num]);
+    }
+
+    fn eval_locs(&self, locs: &[Pos], result: &mut [i32]) {
+        let mut u = vec![vec![0; self.height as usize]; self.width as usize];
+        let mut d = vec![vec![0; self.height as usize]; self.width as usize];
+
+        const UNREACHABLE: i32 = -1;
+        const COMPETITION: i32 = -2;
+
+        for (arr_u, arr_d) in u.iter_mut().zip(d.iter_mut()) {
+            for (ui, di) in arr_u.iter_mut().zip(arr_d.iter_mut()) {
+                *di = (MAX_WIDTH * MAX_HEIGHT + 1) as i32;
+                *ui = UNREACHABLE;
+            }
+        }
+
+        locs.iter().enumerate().for_each(|(i, &loc)| {
+            self.floodfill_closest(&mut u, &mut d, loc, i as i32, 0);
+        });
+
+        for (i, arr) in self.tiles.iter().enumerate() {
+            for j in arr.iter().enumerate().filter_map(|(i, t)| {
+                if matches!(t, Tile::Mine(_)) {
+                    Some(i)
+                } else {
+                    None
+                }
+            }) {
+                let mut max_dist = 0;
+                let mut min_dist = (MAX_WIDTH * MAX_HEIGHT + 1) as i32;
+
+                let mut single_owner = UNREACHABLE;
+
+                for (x, y) in Pos::DIRS.into_iter().filter_map(|Pos(x, y)| {
+                    let (x, y) = (i as i32 + x, j as i32 + y);
+                    if x < 0
+                        || x >= self.width as i32
+                        || y < 0
+                        || y >= self.height as i32
+                        || !self.tiles[x as usize][y as usize].is_habitable()
+                    {
+                        None
+                    } else {
+                        Some((x as usize, y as usize))
+                    }
+                }) {
+                    let dd = d[x][y];
+                    let uu = u[x][y];
+                    if single_owner == UNREACHABLE {
+                        single_owner = uu;
+                        max_dist = dd;
+                        min_dist = dd;
+                    } else if uu == single_owner {
+                        max_dist = max_dist.max(dd);
+                        min_dist = min_dist.min(dd);
+                    } else if uu != UNREACHABLE {
+                        single_owner = COMPETITION
+                    }
+                }
+
+                if single_owner != COMPETITION && single_owner != UNREACHABLE {
+                    result[single_owner as usize] += (100.0
+                        * (MAX_WIDTH + MAX_HEIGHT) as f32
+                        * (-10.0 * (max_dist * min_dist) as f32 / (MAX_WIDTH * MAX_HEIGHT) as f32)
+                            .exp()) as i32;
+                }
+            }
+        }
+    }
+
+    /// Floodfill with value `val`, the closest
+    /// distance has priority.
+    fn floodfill_closest(
+        &self,
+        u: &mut [Vec<i32>],
+        d: &mut [Vec<i32>],
+        Pos(x, y): Pos,
+        val: i32,
+        dist: i32,
+    ) {
+        if x < 0
+            || x >= self.width as i32
+            || y < 0
+            || y >= self.height as i32
+            || self.tiles[x as usize][y as usize].is_habitable()
+        {
+            return;
+        }
+
+        u[x as usize][y as usize] = val;
+        d[x as usize][y as usize] = dist;
+
+        for &Pos(dx, dy) in Pos::DIRS.iter() {
+            self.floodfill_closest(u, d, Pos(x + dx, y + dy), val, dist + 1);
         }
     }
 }
 
+fn sort(vals: &[i32], items: &[i32])
+
 /// A location.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
-pub struct Loc(
+pub struct Pos(
     /// Horizontal axis.
     i32,
     /// Vertical axis.
     i32,
 );
 
-impl Loc {
-    /// Possible derections to move a [`Tile`].
+impl Pos {
+    /// Possible directions to move a [`Tile`].
     pub const DIRS: [Self; 6] = [
         Self(-1, 0),
         Self(1, 0),
@@ -118,7 +225,7 @@ impl Loc {
     ];
 }
 
-impl From<(u32, u32)> for Loc {
+impl From<(u32, u32)> for Pos {
     #[inline]
     fn from((x, y): (u32, u32)) -> Self {
         Self(x as i32, y as i32)
@@ -285,7 +392,7 @@ impl Stencil {
 
     /// Applies thie stencil to the given grid and
     /// nation locations slice.
-    pub fn apply(self, grid: &mut Grid, d: u32, locs: &mut [Loc]) {
+    pub fn apply(self, grid: &mut Grid, d: u32, locs: &mut [Pos]) {
         macro_rules! ij {
             (x, $i:expr, $j:expr) => {
                 0.5 * ($j as f32) + ($i as f32)
@@ -333,7 +440,7 @@ impl Stencil {
                         (d + 1, grid.height - 1 - d),
                         (grid.width - 1 - d - 1, d),
                     ]
-                    .map(Loc::from),
+                    .map(Pos::from),
                 )
             }
             Stencil::Hex => {
@@ -361,7 +468,7 @@ impl Stencil {
                         (grid.width - 1 - d - 2 + 2, d),
                         (grid.width - 1 - dx - d + 2, grid.height - 1 - d),
                     ]
-                    .map(Loc::from),
+                    .map(Pos::from),
                 )
             }
         }
