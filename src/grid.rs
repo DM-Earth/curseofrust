@@ -1,5 +1,7 @@
 use crate::*;
 
+pub const FLAG_POWER: i32 = 8;
+
 /// 2D array of tiles with width and height
 /// information.
 ///
@@ -13,25 +15,26 @@ pub struct Grid {
     tiles: Vec<Vec<Tile>>,
 }
 
+/// Descriptor for method [`Grid::conflict`].
 #[derive(Debug)]
 pub struct ConflictDescriptor<'a> {
     pub locs: &'a [Pos],
 
     pub available_locs_num: usize,
     /// Number of starting locations.
-    ///
     /// Can be 2, 3, or 4.
     pub locs_num: usize,
 
     /// Ids of the possible opponents.
-    pub players: &'a [u32],
-    pub ui_players: &'a [u32],
+    pub players: &'a [Player],
+    pub ui_players: &'a [Player],
 
     /// 1, ... number of available locations.
     /// 1 is the best.
-    pub conditions: usize,
+    pub conditions: Option<u32>,
     /// Inequality from 0 to 4.
-    pub ineq: u32,
+    /// `None` leaves for a randomly generated value.
+    pub ineq: Option<u32>,
 }
 
 impl Grid {
@@ -41,9 +44,12 @@ impl Grid {
     ///
     /// See [`Tile::new`].
     pub fn new(width: u32, height: u32) -> Self {
+        let width = width.min(MAX_WIDTH);
+        let height = height.min(MAX_HEIGHT);
+
         Self {
-            width: width.min(crate::MAX_WIDTH),
-            height: height.min(crate::MAX_HEIGHT),
+            width,
+            height,
 
             tiles: vec![(); width as usize]
                 .into_iter()
@@ -57,7 +63,12 @@ impl Grid {
         }
     }
 
-    pub fn conflict(&mut self, descriptor: ConflictDescriptor<'_>) {
+    /// Enhances an already initialized grid.
+    ///
+    /// Places at most 4 players at the corners of the map,
+    /// gives them a fortress and 2 mines nearby.
+    /// One of those players is always controlled by a human player.
+    pub fn conflict(&mut self, descriptor: ConflictDescriptor<'_>) -> crate::Result<()> {
         let ConflictDescriptor {
             locs,
             available_locs_num,
@@ -102,8 +113,66 @@ impl Grid {
         }
 
         let mut eval_result = [0; 7];
-        let loc_index = [0, 1, 2, 3, 4, 5, 6];
         self.eval_locs(&chosen_locs, &mut eval_result[..num]);
+        let mut loc_index: [usize; 7] = [0, 1, 2, 3, 4, 5, 6];
+        loc_index.sort_by_key(|i| eval_result[*i]);
+        eval_result.sort();
+
+        if let Some(ineq) = ineq {
+            let avg = eval_result.into_iter().sum::<i32>() as f32 / num as f32;
+            // Population variance.
+            let var = eval_result
+                .into_iter()
+                .map(|val| (val as f32 - avg).powi(2))
+                .sum::<f32>()
+                / num as f32;
+
+            let x = var.sqrt() * 1000.0 / avg;
+            if !matches!(
+                (ineq, x as i32),
+                (0, ..=50) | (1, 51..=100) | (2, 101..=250) | (3, 251..=500) | (4, 501..)
+            ) {
+                return Err(Error::ConflictDiffOutOfBound);
+            }
+        }
+
+        // Suffled computer players.
+        let mut sh_players_comp = players.to_vec();
+        fastrand::shuffle(&mut sh_players_comp);
+        let sh_players_comp = sh_players_comp;
+
+        // Shuffled copy of the players array.
+        let mut sh_players = ui_players.to_vec();
+        let (p0, p1) = sh_players_comp.split_at(fastrand::usize(..players.len()));
+        sh_players.extend_from_slice(p1);
+        sh_players.extend_from_slice(p0);
+        fastrand::shuffle(&mut sh_players[..num]);
+
+        // Human player index.
+        let ihuman = conditions.map_or_else(
+            || fastrand::u32(..num as u32),
+            // Choose specific conditions {1,... N}, 1 => best, N => worst
+            |c| loc_index[(num - c as usize).min(num - 1)] as u32,
+        );
+
+        for (i, ii) in loc_index[..num].into_iter().copied().enumerate() {
+            let Pos(x, y) = chosen_locs[ii];
+            let tile = &mut self.tiles[x as usize][y as usize];
+            if ui_players.len() > 1 {
+                tile.set_owner(sh_players[i]);
+            } else if ii as u32 == ihuman {
+                tile.set_owner(ui_players[0]);
+            } else {
+                tile.set_owner(sh_players_comp[i]);
+            }
+
+            let Player(owner) = tile.owner();
+            if let Tile::Habitable { units, .. } = tile {
+                units[owner as usize] = 10;
+            }
+        }
+
+        Ok(())
     }
 
     fn eval_locs(&self, locs: &[Pos], result: &mut [i32]) {
@@ -188,7 +257,7 @@ impl Grid {
             || x >= self.width as i32
             || y < 0
             || y >= self.height as i32
-            || self.tiles[x as usize][y as usize].is_habitable()
+            || !self.tiles[x as usize][y as usize].is_habitable()
         {
             return;
         }
@@ -196,13 +265,49 @@ impl Grid {
         u[x as usize][y as usize] = val;
         d[x as usize][y as usize] = dist;
 
-        for &Pos(dx, dy) in Pos::DIRS.iter() {
+        for Pos(dx, dy) in Pos::DIRS {
             self.floodfill_closest(u, d, Pos(x + dx, y + dy), val, dist + 1);
         }
     }
-}
 
-fn sort(vals: &[i32], items: &[i32])
+    fn floodfill(&self, u: &mut [Vec<i32>], Pos(x, y): Pos, val: i32) {
+        if x < 0
+            || x >= self.width as i32
+            || y < 0
+            || y >= self.height as i32
+            || !self.tiles[x as usize][y as usize].is_habitable()
+            || u[x as usize][y as usize] == val
+        {
+            return;
+        }
+        u[x as usize][y as usize] = val;
+        for Pos(dx, dy) in Pos::DIRS {
+            self.floodfill(u, Pos(x + dx, y + dy), val)
+        }
+    }
+
+    /// Returns connectedness of this grid.
+    pub fn is_connected(&self) -> bool {
+        let mut colored = false;
+        let mut m = vec![vec![0; self.height as usize]; self.width as usize];
+        for (i, arr_g) in self.tiles.iter().enumerate() {
+            for j in arr_g.iter().enumerate().filter_map(|(j, t)| {
+                if t.owner().is_neutral() {
+                    None
+                } else {
+                    Some(j)
+                }
+            }) {
+                if colored && m[i][j] == 0 {
+                    return false;
+                }
+                colored = true;
+                self.floodfill(&mut m, Pos(i as i32, j as i32), 1)
+            }
+        }
+        true
+    }
+}
 
 /// A location.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -471,6 +576,144 @@ impl Stencil {
                     .map(Pos::from),
                 )
             }
+        }
+    }
+}
+
+/// [`Grid`] but stores information about
+/// player's flags.
+///
+/// Each player has his own flag grid.
+#[derive(Debug)]
+pub struct FlagGrid {
+    width: u32,
+    height: u32,
+
+    /// Whether a position has a flag.
+    flags: Vec<Vec<bool>>,
+
+    /// Information of power of attraction
+    /// a position has.
+    ///
+    /// Must be updated when flags are added
+    /// or removed.
+    call: Vec<Vec<i32>>,
+}
+
+impl FlagGrid {
+    /// Creates an empty flag grid with
+    /// given width and height.
+    pub fn new(width: u32, height: u32) -> Self {
+        let width = width.min(MAX_WIDTH);
+        let height = height.min(MAX_HEIGHT);
+
+        Self {
+            width,
+            height,
+            flags: vec![vec![false; height as usize]; width as usize],
+            call: vec![vec![0; height as usize]; width as usize],
+        }
+    }
+
+    /// Adds a flag on the given position with the given power.
+    pub fn add(&mut self, grid: &Grid, Pos(x, y): Pos, power: i32) {
+        let (xu, yu) = (x as usize, y as usize);
+
+        if x < 0
+            || x >= grid.width as i32
+            || y < 0
+            || y >= grid.height as i32
+            || !grid.tiles[xu][yu].is_habitable()
+            || self.flags[xu][yu]
+        {
+            return;
+        }
+
+        let mut u = vec![vec![0; grid.height as usize]; grid.width as usize];
+        self.flags[xu][yu] = true;
+        grid.spread(&mut u, &mut self.call, Pos(x, y), power, 1);
+    }
+
+    /// Removes a flag on the given position with the given power.
+    pub fn remove(&mut self, grid: &Grid, Pos(x, y): Pos, power: i32) {
+        let (xu, yu) = (x as usize, y as usize);
+
+        if x < 0
+            || x >= grid.width as i32
+            || y < 0
+            || y >= grid.height as i32
+            || !grid.tiles[xu][yu].is_habitable()
+            || !self.flags[xu][yu]
+        {
+            return;
+        }
+
+        let mut u = vec![vec![0; grid.height as usize]; grid.width as usize];
+        self.flags[xu][yu] = false;
+        grid.spread(&mut u, &mut self.call, Pos(x, y), power, -1);
+    }
+
+    /// Iterates over all tiles and removes flags
+    /// with probability `prob`.
+    ///
+    /// With `prob = 1`, all flags will be removed.
+    pub fn remove_with_prob(&mut self, grid: &Grid, prob: f32) {
+        for i in 0..self.width as i32 {
+            for j in 0..self.width as i32 {
+                if self.flags[i as usize][j as usize] && fastrand::f32() <= prob {
+                    self.remove(grid, Pos(i, j), FLAG_POWER);
+                }
+            }
+        }
+    }
+}
+
+impl Grid {
+    pub fn spread(
+        &self,
+        u: &mut [Vec<i32>],
+        v: &mut [Vec<i32>],
+        Pos(x, y): Pos,
+        val: i32,
+        factor: i32,
+    ) {
+        let (xu, yu) = (x as usize, y as usize);
+
+        if x < 0
+            || x >= self.width as i32
+            || y < 0
+            || y >= self.height as i32
+            || !self.tiles[xu][yu].is_habitable()
+        {
+            return;
+        }
+
+        let d = val - u[xu][yu];
+        if d > 0 {
+            {
+                let vv = &mut v[xu][yu];
+                *vv = 0.max(*vv + d * factor);
+                u[xu][yu] += d;
+            }
+            for Pos(xd, yd) in Pos::DIRS {
+                self.spread(u, v, Pos(x + xd, y + yd), val / 2, factor)
+            }
+        }
+    }
+
+    pub fn even(&self, v: &mut [Vec<i32>], Pos(x, y): Pos, val: i32) {
+        if x < 0
+            || x >= self.width as i32
+            || y < 0
+            || y >= self.height as i32
+            || v[x as usize][y as usize] == val
+        {
+            return;
+        }
+
+        v[x as usize][y as usize] = val;
+        for Pos(xd, yd) in Pos::DIRS {
+            self.even(v, Pos(x + xd, y + yd), val)
         }
     }
 }
