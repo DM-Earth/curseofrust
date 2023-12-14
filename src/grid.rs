@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::*;
 
 pub const FLAG_POWER: i32 = 8;
@@ -61,6 +63,44 @@ impl Grid {
                 })
                 .collect(),
         }
+    }
+
+    /// Gets width of this grid.
+    #[inline]
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    /// Gets height of this grid.
+    #[inline]
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    /// Gets the tile from given position.
+    #[inline]
+    pub fn tile(&self, Pos(x, y): Pos) -> Option<&Tile> {
+        self.tiles.get(x as usize).and_then(|a| a.get(y as usize))
+    }
+
+    /// Gets the tile from given position, mutably.
+    #[inline]
+    pub fn tile_mut(&mut self, Pos(x, y): Pos) -> Option<&mut Tile> {
+        self.tiles
+            .get_mut(x as usize)
+            .and_then(|a| a.get_mut(y as usize))
+    }
+
+    /// Gets the raw tiles array of this grid.
+    #[inline]
+    pub fn raw_tiles(&self) -> &[Vec<Tile>] {
+        &self.tiles
+    }
+
+    /// Gets the raw tiles array of this grid, mutably.
+    #[inline]
+    pub fn raw_tiles_mut(&mut self) -> &mut [Vec<Tile>] {
+        &mut self.tiles
     }
 
     /// Enhances an already initialized grid.
@@ -313,9 +353,9 @@ impl Grid {
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct Pos(
     /// Horizontal axis.
-    i32,
+    pub i32,
     /// Vertical axis.
-    i32,
+    pub i32,
 );
 
 impl Pos {
@@ -452,6 +492,44 @@ pub enum HabitLand {
     Town,
     /// Castles.
     Fortress,
+}
+
+impl HabitLand {
+    /// Gets price of this type of land.
+    #[inline]
+    pub const fn price(self) -> u64 {
+        match self {
+            HabitLand::Grassland => 0,
+            HabitLand::Village => king::PRICE_VILLAGE,
+            HabitLand::Town => king::PRICE_TOWN,
+            HabitLand::Fortress => king::PRICE_FORTRESS,
+        }
+    }
+
+    /// Upgrade this land and returns the upgrade price.
+    #[inline]
+    pub fn upgrade(&mut self) -> Option<u64> {
+        *self = match self {
+            HabitLand::Grassland => HabitLand::Village,
+            HabitLand::Village => HabitLand::Town,
+            HabitLand::Town => HabitLand::Fortress,
+            HabitLand::Fortress => return None,
+        };
+        Some(self.price())
+    }
+
+    /// Degrades this land and returns whether
+    /// the degrade was successful.
+    #[inline]
+    pub fn degrade(&mut self) -> bool {
+        *self = match self {
+            HabitLand::Grassland => return false,
+            HabitLand::Village => HabitLand::Grassland,
+            HabitLand::Town => HabitLand::Village,
+            HabitLand::Fortress => HabitLand::Town,
+        };
+        true
+    }
 }
 
 impl Tile {
@@ -620,16 +698,16 @@ impl FlagGrid {
         let (xu, yu) = (x as usize, y as usize);
 
         if x < 0
-            || x >= grid.width as i32
+            || x >= self.width as i32
             || y < 0
-            || y >= grid.height as i32
+            || y >= self.height as i32
             || !grid.tiles[xu][yu].is_habitable()
             || self.flags[xu][yu]
         {
             return;
         }
 
-        let mut u = vec![vec![0; grid.height as usize]; grid.width as usize];
+        let mut u = [[0; MAX_HEIGHT as usize]; MAX_WIDTH as usize];
         self.flags[xu][yu] = true;
         grid.spread(&mut u, &mut self.call, Pos(x, y), power, 1);
     }
@@ -639,16 +717,16 @@ impl FlagGrid {
         let (xu, yu) = (x as usize, y as usize);
 
         if x < 0
-            || x >= grid.width as i32
+            || x >= self.width as i32
             || y < 0
-            || y >= grid.height as i32
+            || y >= self.height as i32
             || !grid.tiles[xu][yu].is_habitable()
             || !self.flags[xu][yu]
         {
             return;
         }
 
-        let mut u = vec![vec![0; grid.height as usize]; grid.width as usize];
+        let mut u = [[0; MAX_HEIGHT as usize]; MAX_WIDTH as usize];
         self.flags[xu][yu] = false;
         grid.spread(&mut u, &mut self.call, Pos(x, y), power, -1);
     }
@@ -659,32 +737,35 @@ impl FlagGrid {
     /// With `prob = 1`, all flags will be removed.
     pub fn remove_with_prob(&mut self, grid: &Grid, prob: f32) {
         for i in 0..self.width as i32 {
-            for j in 0..self.width as i32 {
+            for j in 0..self.height as i32 {
                 if self.flags[i as usize][j as usize] && fastrand::f32() <= prob {
                     self.remove(grid, Pos(i, j), FLAG_POWER);
                 }
             }
         }
     }
+
+    #[inline]
+    pub fn is_flagged(&self, Pos(i, j): Pos) -> bool {
+        self.flags
+            .get(i as usize)
+            .and_then(|a| a.get(j as usize))
+            .copied()
+            .unwrap_or_default()
+    }
 }
 
 impl Grid {
     pub fn spread(
         &self,
-        u: &mut [Vec<i32>],
-        v: &mut [Vec<i32>],
+        u: &mut [impl IndexMut<usize> + Index<usize, Output = i32>],
+        v: &mut [impl IndexMut<usize> + Index<usize, Output = i32>],
         Pos(x, y): Pos,
         val: i32,
         factor: i32,
     ) {
         let (xu, yu) = (x as usize, y as usize);
-
-        if x < 0
-            || x >= self.width as i32
-            || y < 0
-            || y >= self.height as i32
-            || !self.tiles[xu][yu].is_habitable()
-        {
+        if !self.tile(Pos(x, y)).map_or(false, Tile::is_habitable) {
             return;
         }
 
@@ -701,7 +782,12 @@ impl Grid {
         }
     }
 
-    pub fn even(&self, v: &mut [Vec<i32>], Pos(x, y): Pos, val: i32) {
+    pub fn even(
+        &self,
+        v: &mut [impl IndexMut<usize> + Index<usize, Output = i32>],
+        Pos(x, y): Pos,
+        val: i32,
+    ) {
         if x < 0
             || x >= self.width as i32
             || y < 0
