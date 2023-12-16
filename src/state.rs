@@ -99,7 +99,6 @@ impl State {
         let ui_players = all_players[..mp_opt.clients_num].to_vec();
 
         let mut kings: Vec<King> = (0..ui_players.len())
-            .into_iter()
             .map(|i| {
                 King::new(
                     Player(i as u32 + 1),
