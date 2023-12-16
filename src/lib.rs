@@ -23,6 +23,7 @@ pub const MAX_PLAYERS: usize = 8;
 pub const MAX_POPULATION: u16 = 499;
 
 pub use grid::{FlagGrid, Grid, Pos, FLAG_POWER};
+pub use king::{Country, King, Strategy};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub struct Player(u32);
@@ -112,22 +113,59 @@ impl std::error::Error for Error {}
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Game speed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Speed {
     Pause,
     Slowest,
     Slower,
     Slow,
+    #[default]
     Normal,
+    Fast,
     Faster,
     Fastest,
 }
 
+impl Speed {
+    /// Make the speed faster, or keep it
+    /// at `Fastest`.
+    #[inline]
+    pub fn faster(self) -> Self {
+        match self {
+            Speed::Pause => Self::Slowest,
+            Speed::Slowest => Self::Slower,
+            Speed::Slower => Self::Slow,
+            Speed::Slow => Self::Normal,
+            Speed::Normal => Self::Fast,
+            Speed::Fast => Self::Faster,
+            Speed::Faster => Self::Fastest,
+            _ => self,
+        }
+    }
+
+    /// Make the speed slower, or keep it
+    /// at `Pause`.
+    #[inline]
+    pub fn slower(self) -> Self {
+        match self {
+            Speed::Slowest => Self::Pause,
+            Speed::Slower => Self::Slowest,
+            Speed::Slow => Self::Slower,
+            Speed::Normal => Self::Slow,
+            Speed::Fast => Self::Normal,
+            Speed::Faster => Self::Fast,
+            Speed::Fastest => Self::Faster,
+            _ => self,
+        }
+    }
+}
+
 /// Game difficulty.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum Difficulty {
     Easiest,
     Easy,
+    #[default]
     Normal,
     Hard,
     Hardest,

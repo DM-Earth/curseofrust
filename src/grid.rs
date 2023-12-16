@@ -22,7 +22,6 @@ pub struct Grid {
 pub struct ConflictDescriptor<'a> {
     pub locs: &'a [Pos],
 
-    pub available_locs_num: usize,
     /// Number of starting locations.
     /// Can be 2, 3, or 4.
     pub locs_num: usize,
@@ -111,7 +110,6 @@ impl Grid {
     pub fn conflict(&mut self, descriptor: ConflictDescriptor<'_>) -> crate::Result<()> {
         let ConflictDescriptor {
             locs,
-            available_locs_num,
             locs_num,
             players,
             ui_players,
@@ -130,14 +128,13 @@ impl Grid {
             }
         }
 
-        let locs_num = in_segment!(locs_num, 2, available_locs_num);
+        let locs_num = in_segment!(locs_num, 2, locs.len());
         let num = locs_num.min(players.len() + ui_players.len());
-        let di = fastrand::usize(..available_locs_num);
+        let di = fastrand::usize(..locs.len());
 
         let mut chosen_locs = vec![Pos(0, 0); num];
         for (i, loc) in chosen_locs.iter_mut().enumerate() {
-            let ii = (i + di + available_locs_num) % available_locs_num;
-            *loc = locs[ii];
+            *loc = locs[(i + di) % locs.len()];
             let Pos(x, y) = *loc;
             self.tiles[x as usize][y as usize].set_habitable(HabitLand::Fortress);
 
@@ -195,7 +192,7 @@ impl Grid {
             |c| loc_index[(num - c as usize).min(num - 1)] as u32,
         );
 
-        for (i, ii) in loc_index[..num].into_iter().copied().enumerate() {
+        for (i, ii) in loc_index[..num].iter().copied().enumerate() {
             let Pos(x, y) = chosen_locs[ii];
             let tile = &mut self.tiles[x as usize][y as usize];
             if ui_players.len() > 1 {
@@ -414,7 +411,7 @@ impl Tile {
     }
 
     /// Randomly generates a tile from scratch.
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let mut this = Self::default();
         match fastrand::u32(..20) {
             0 => {
@@ -484,6 +481,7 @@ impl Default for Tile {
 
 /// Habitable tile variants.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
+#[repr(u8)]
 pub enum HabitLand {
     /// Habitable territory that does not have cities.
     #[default]
@@ -563,6 +561,8 @@ pub enum Stencil {
     Rect,
     Hex,
 }
+
+pub const MAX_AVLBL_LOCS: usize = 7;
 
 impl Stencil {
     /// Max count of nations of this stencil.
@@ -662,7 +662,7 @@ impl Stencil {
 /// player's flags.
 ///
 /// Each player has his own flag grid.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FlagGrid {
     width: u32,
     height: u32,

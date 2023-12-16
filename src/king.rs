@@ -10,6 +10,16 @@ pub struct Country {
     gold: u64,
 }
 
+impl From<Player> for Country {
+    #[inline]
+    fn from(value: Player) -> Self {
+        Self {
+            player: value,
+            gold: 0,
+        }
+    }
+}
+
 pub const PRICE_VILLAGE: u64 = 160;
 pub const PRICE_TOWN: u64 = 240;
 pub const PRICE_FORTRESS: u64 = 320;
@@ -79,8 +89,9 @@ pub struct King {
 }
 
 /// Greedy strategy for a [`King`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Strategy {
+    #[default]
     None,
     AggrGreedy,
     OneGreedy,
@@ -137,9 +148,9 @@ impl Strategy {
 impl King {
     /// Creates a new king.
     #[inline]
-    pub fn new(player: Player, strat: Strategy, grid: &Grid) -> Self {
+    pub fn new(player: Player, strat: Strategy, width: u32, height: u32) -> Self {
         Self {
-            values: vec![vec![0; grid.height() as usize]; grid.width() as usize],
+            values: vec![vec![0; height as usize]; width as usize],
             player,
             strategy: strat,
         }
@@ -296,8 +307,7 @@ fn action_aggr_greedy(king: &King, grid: &Grid, fg: &mut FlagGrid) {
 
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy =
-                    units[..pl].into_iter().sum::<u16>() + units[pl + 1..].into_iter().sum::<u16>();
+                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
                 if (val * (2 * enemy as i32 - army as i32)) as f32 * (army as f32).powf(0.5)
                     > 5000.0
                 {
@@ -323,8 +333,7 @@ fn action_one_greedy(king: &King, grid: &Grid, fg: &mut FlagGrid) {
             if let Tile::Habitable { units, .. } = tile {
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy =
-                    units[..pl].into_iter().sum::<u16>() + units[pl + 1..].into_iter().sum::<u16>();
+                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
                 let v = (val * (5 * enemy as i32 - army as i32)) as f32 * (army as f32).powf(0.5);
                 if v > v_best && v > 5000.0 {
                     v_best = v;
@@ -346,8 +355,7 @@ fn action_persistent_greedy(king: &King, grid: &Grid, fg: &mut FlagGrid) {
             if let Tile::Habitable { units, .. } = tile {
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy =
-                    units[..pl].into_iter().sum::<u16>() + units[pl + 1..].into_iter().sum::<u16>();
+                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
                 let v = (val as f32 * (2.5 * enemy as f32 - army as f32) * (army as f32).powf(0.7))
                     .max(
                         (val * (MAX_POPULATION as i32 - enemy as i32 + army as i32)) as f32
@@ -372,8 +380,7 @@ fn action_opportunist(king: &King, grid: &Grid, fg: &mut FlagGrid) {
 
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy =
-                    units[..pl].into_iter().sum::<u16>() + units[pl + 1..].into_iter().sum::<u16>();
+                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
                 if enemy > army
                     && (val * (MAX_POPULATION as i32 - enemy as i32 + army as i32)) as f32
                         * (army as f32).powf(0.5)
@@ -418,7 +425,7 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
                 let mut vals = self.vals;
 
                 {
-                    let mut li = self.locs[i + 1..].into_iter().copied().rev();
+                    let mut li = self.locs[i + 1..].iter().copied().rev();
                     let mut vi = self.vals.into_iter().rev();
 
                     li.next();
@@ -454,8 +461,7 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
 
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy =
-                    units[..pl].into_iter().sum::<u16>() + units[pl + 1..].into_iter().sum::<u16>();
+                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
                 let v = (val * (MAX_POPULATION as i32 - enemy as i32 + army as i32)) as f32
                     * (army as f32).powf(0.5);
 
