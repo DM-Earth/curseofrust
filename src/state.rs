@@ -57,9 +57,12 @@ pub struct MultiplayerOpts {
     pub clients_num: usize,
 }
 
+/// Game state.
 pub struct State {
+    /// The map grid.
     grid: Grid,
-    fgs: [Option<FlagGrid>; MAX_PLAYERS],
+    /// The array of flag grids of each players.
+    fgs: [FlagGrid; MAX_PLAYERS],
     /// AI opponents.
     kings: Vec<King>,
 
@@ -146,21 +149,36 @@ impl State {
             }
         }
 
-        let mut fgs = [0; MAX_PLAYERS].map(|_| FlagGrid::new(width, height));
+        let fgs = [0; MAX_PLAYERS].map(|_| FlagGrid::new(width, height));
         let mut countries = [0; MAX_PLAYERS];
         countries.iter_mut().enumerate().for_each(|(i, c)| *c = i);
-        let mut countries = countries.map(|c| Country::from(Player(c as u32)));
+        let countries = countries.map(|c| Country::from(Player(c as u32)));
 
         kings
             .iter_mut()
             .for_each(|k| k.evaluate(&grid, b_opt.difficulty));
 
-        let mut timeline = Timeline {
+        let timeline = Timeline {
             data: [[0.0; Timeline::MAX_MARKS]; MAX_PLAYERS],
             time: [time; Timeline::MAX_MARKS],
             mark: 0,
         };
 
-        todo!()
+        Ok(Self {
+            grid,
+            fgs,
+            kings,
+            timeline,
+            show_timeline: b_opt.timeline,
+            countries,
+            time,
+            seed: fastrand::get_seed(),
+            controlled: Player(1),
+            conditions: b_opt.conditions,
+            inequality: b_opt.inequality,
+            speed: b_opt.speed,
+            prev_speed: b_opt.speed,
+            difficulty: b_opt.difficulty,
+        })
     }
 }
