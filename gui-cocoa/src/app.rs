@@ -1,8 +1,8 @@
-use cacao::appkit::{
+use cacao::{appkit::{
     menu::{Menu, MenuItem},
     window::Window,
     App, AppDelegate,
-};
+}, image::Image};
 #[derive(Default)]
 pub struct CorApp {
     game_window: Window,
@@ -14,7 +14,7 @@ impl AppDelegate for CorApp {
         self.game_window.set_title("corCocoa");
         self.game_window.show();
         App::set_menu(Self::menu());
-        Self::change_app_menu_name("CoR");
+        // Self::change_app_menu_name("CoR");
         App::activate();
     }
 }
@@ -31,6 +31,7 @@ impl CorApp {
         )]
     }
 
+    /// Lost main menu's bold style.
     fn change_app_menu_name(name: &str) {
         use cacao::foundation::NSString;
         let string: NSString = NSString::new(name);
@@ -45,6 +46,7 @@ impl CorApp {
         }
     }
 
+    /// Very raw, very ugly.
     fn draw_and_set_app_menu_name(name: &str) {
         use cacao::foundation::NSString;
         let string: NSString = NSString::new(name);
@@ -74,5 +76,12 @@ impl CorApp {
             let _: () = msg_send![app_menu, setTitle:NSString::new("")];
             let _: () = msg_send![item_zero, setImage:image];
         }
+    }
+
+    /// Icon is hard-coded, so call this only once.\
+    /// Just modify this fn if you want to change icon.
+    fn set_app_icon(){
+        let image:Image=Image::with_data(include_bytes!("../images/icon.bmp"));
+        todo!()
     }
 }
