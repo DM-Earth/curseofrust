@@ -1,8 +1,11 @@
-use cacao::{appkit::{
-    menu::{Menu, MenuItem},
-    window::Window,
-    App, AppDelegate,
-}, image::Image};
+use cacao::{
+    appkit::{
+        menu::{Menu, MenuItem},
+        window::Window,
+        App, AppDelegate,
+    },
+    image::Image,
+};
 #[derive(Default)]
 pub struct CorApp {
     game_window: Window,
@@ -16,6 +19,7 @@ impl AppDelegate for CorApp {
         App::set_menu(Self::menu());
         // Self::change_app_menu_name("CoR");
         App::activate();
+        Self::set_app_icon();
     }
 }
 
@@ -24,14 +28,14 @@ impl CorApp {
         vec![Menu::new(
             "corCocoa",
             vec![
-                MenuItem::About("curseofrust".to_string()),
+                MenuItem::About("Curse of Rust".to_string()),
                 MenuItem::Separator,
                 MenuItem::Quit,
             ],
         )]
     }
 
-    /// Lost main menu's bold style.
+    /// Loses main menu's bold style.
     fn change_app_menu_name(name: &str) {
         use cacao::foundation::NSString;
         let string: NSString = NSString::new(name);
@@ -80,8 +84,14 @@ impl CorApp {
 
     /// Icon is hard-coded, so call this only once.\
     /// Just modify this fn if you want to change icon.
-    fn set_app_icon(){
-        let image:Image=Image::with_data(include_bytes!("../images/icon.bmp"));
-        todo!()
+    fn set_app_icon() {
+        let image: Image = Image::with_data(include_bytes!("../images/icon.png"));
+        unsafe {
+            use cacao::foundation::id;
+            use cacao::objc::{class, msg_send, sel, sel_impl};
+
+            let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
+            let _: () = msg_send![shared_app, setApplicationIconImage:image];
+        }
     }
 }
