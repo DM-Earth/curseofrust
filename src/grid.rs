@@ -466,6 +466,16 @@ impl Tile {
             }
         }
     }
+
+    #[inline]
+    pub fn units(&self) -> &[u16; MAX_PLAYERS] {
+        if let Self::Habitable { units, .. } = self {
+            units
+        } else {
+            const EMPTY: [u16; MAX_PLAYERS] = [0; MAX_PLAYERS];
+            &EMPTY
+        }
+    }
 }
 
 impl Default for Tile {
@@ -527,6 +537,15 @@ impl HabitLand {
             HabitLand::Fortress => HabitLand::Town,
         };
         true
+    }
+
+    pub const fn growth(self) -> f32 {
+        match self {
+            HabitLand::Village => 1.10,
+            HabitLand::Town => 1.20,
+            HabitLand::Fortress => 1.30,
+            _ => 0.0,
+        }
     }
 }
 
@@ -752,6 +771,14 @@ impl FlagGrid {
             .and_then(|a| a.get(j as usize))
             .copied()
             .unwrap_or_default()
+    }
+
+    #[inline]
+    pub fn call(&self, Pos(i, j): Pos) -> Option<i32> {
+        self.call
+            .get(i as usize)
+            .and_then(|a| a.get(j as usize))
+            .copied()
     }
 }
 

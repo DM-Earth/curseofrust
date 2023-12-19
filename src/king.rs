@@ -6,8 +6,8 @@ use crate::{
 /// Data about each country.
 #[derive(Debug)]
 pub struct Country {
-    player: Player,
-    gold: u64,
+    pub player: Player,
+    pub gold: u64,
 }
 
 impl From<Player> for Country {
@@ -159,7 +159,7 @@ impl King {
     /// Evaluates the grid.
     ///
     /// Difficulty determines the quality of evaluation.
-    pub fn evaluate(&mut self, grid: &Grid, difficulty: Difficulty) {
+    pub fn evaluate_map(&mut self, grid: &Grid, difficulty: Difficulty) {
         self.values.iter_mut().for_each(|a| a.fill(0));
         let mut u = self.values.clone();
 
@@ -296,6 +296,11 @@ impl King {
             Strategy::Noble => action!(action_noble),
             _ => (),
         }
+    }
+
+    #[inline]
+    pub fn player(&self) -> Player {
+        self.player
     }
 }
 
