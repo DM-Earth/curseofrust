@@ -429,9 +429,11 @@ impl State {
         }
 
         // Kings re-evaluate the map
-        self.kings
-            .iter_mut()
-            .for_each(|t| t.evaluate_map(&self.grid, self.difficulty));
+        if need_to_reeval {
+            self.kings
+                .iter_mut()
+                .for_each(|t| t.evaluate_map(&self.grid, self.difficulty));
+        }
 
         // Give gold to AI on hard difficulties
         let add_gold = match self.difficulty {
