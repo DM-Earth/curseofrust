@@ -84,6 +84,7 @@ name = "curseofrust-gui-cocoa"
 version = "0.1.0"
 dependencies = [
  "cacao",
+ "curseofrust",
 ]
 
 [[package]]

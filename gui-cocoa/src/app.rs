@@ -6,9 +6,11 @@ use cacao::{
     },
     image::Image,
 };
-#[derive(Default)]
+use curseofrust::state::State;
+
 pub struct CorApp {
     game_window: Window,
+    state: Option<State>,
 }
 
 impl AppDelegate for CorApp {
@@ -24,11 +26,18 @@ impl AppDelegate for CorApp {
 }
 
 impl CorApp {
+    pub fn new()->Self{
+        Self{
+            game_window: Default::default(),
+            state: None,
+        }
+    }
+
     fn menu() -> Vec<Menu> {
         vec![Menu::new(
             "corCocoa",
             vec![
-                MenuItem::About("Curse of Rust".to_string()),
+                MenuItem::About("Curse of Rust".into()),
                 MenuItem::Separator,
                 MenuItem::Quit,
             ],
@@ -44,9 +53,9 @@ impl CorApp {
             use cacao::objc::{class, msg_send, sel, sel_impl};
             let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
             let main_menu: id = msg_send![shared_app, mainMenu];
-            let item_zero: id = msg_send![main_menu,itemAtIndex:0];
+            let item_zero: id = msg_send![main_menu, itemAtIndex:0];
             let app_menu: id = msg_send![item_zero, submenu];
-            let _: () = msg_send![app_menu ,setTitle:string];
+            let _: () = msg_send![app_menu, setTitle:string];
         }
     }
 
@@ -66,6 +75,7 @@ impl CorApp {
 
             let font: id = msg_send![class!(NSFont), boldSystemFontOfSize:13];
             let mut dict: NSMutableDictionary = NSMutableDictionary::new();
+            // This dictionary key name needs to be corrected.
             dict.insert(NSString::new("NSFontAttributeName"), font);
             let dict_objc: id = dict.into_inner();
             let size: CGSize = msg_send![string, sizeWithAttributes:dict_objc];
@@ -85,7 +95,7 @@ impl CorApp {
     /// Icon is hard-coded, so call this only once.\
     /// Just modify this fn if you want to change icon.
     fn set_app_icon() {
-        let image: Image = Image::with_data(include_bytes!("../images/icon.png"));
+        let image: Image = Image::with_data(include_bytes!("../images/icon.gif"));
         unsafe {
             use cacao::foundation::id;
             use cacao::objc::{class, msg_send, sel, sel_impl};
