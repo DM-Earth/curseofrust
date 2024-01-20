@@ -152,8 +152,8 @@ impl Grid {
         let mut eval_result = [0; 7];
         self.eval_locs(&chosen_locs, &mut eval_result[..num]);
         let mut loc_index: [usize; 7] = [0, 1, 2, 3, 4, 5, 6];
-        loc_index.sort_by_key(|i| eval_result[*i]);
-        eval_result.sort();
+        loc_index[..num].sort_by_key(|i| eval_result[*i]);
+        eval_result[..num].sort();
 
         if let Some(ineq) = ineq {
             let avg = eval_result.into_iter().sum::<i32>() as f32 / num as f32;
@@ -295,6 +295,7 @@ impl Grid {
             || y < 0
             || y >= self.height as i32
             || !self.tiles[x as usize][y as usize].is_habitable()
+            || d[x as usize][y as usize] <= dist
         {
             return;
         }
