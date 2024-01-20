@@ -1,7 +1,7 @@
-use cacao::appkit::App;
-
+#[cfg(target_os = "macos")]
 mod app;
 
 fn main() {
-    App::new("com.dm.earth.curseofrust", app::CorApp::new()).run();
+    #[cfg(target_os = "macos")]
+    cacao::appkit::App::new("com.dm.earth.curseofrust", app::CorApp::new()).run();
 }

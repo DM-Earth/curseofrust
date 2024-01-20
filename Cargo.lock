@@ -80,6 +80,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "curseofrust-console"
+version = "0.1.0"
+dependencies = [
+ "curseofrust",
+]
+
+[[package]]
 name = "curseofrust-gui-cocoa"
 version = "0.1.0"
 dependencies = [
