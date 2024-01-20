@@ -1,3 +1,8 @@
+use std::{
+    default,
+    net::{IpAddr, SocketAddr},
+};
+
 use crate::{
     grid::{HabitLand, Stencil, Tile, MAX_AVLBL_LOCS},
     Country, Difficulty, FlagGrid, Grid, King, Player, Pos, Speed, Strategy, MAX_HEIGHT,
@@ -52,6 +57,7 @@ impl Timeline {
     }
 }
 
+#[derive(Debug)]
 pub struct BasicOpts {
     pub keep_random: bool,
     pub difficulty: Difficulty,
@@ -66,17 +72,37 @@ pub struct BasicOpts {
 
     pub inequality: Option<u32>,
     pub shape: Stencil,
+
+    pub clients: usize,
 }
 
-pub struct MultiplayerOpts {
-    pub multiplayer: bool,
-    pub server: bool,
+impl Default for BasicOpts {
+    fn default() -> Self {
+        Self {
+            keep_random: false,
+            difficulty: Default::default(),
+            speed: Default::default(),
+            width: 21,
+            height: 21,
+            locations: Stencil::default().max_locs(),
+            seed: fastrand::u64(..),
+            conditions: Default::default(),
+            timeline: false,
+            inequality: Default::default(),
+            shape: Default::default(),
+            clients: 1,
+        }
+    }
+}
 
-    pub client_port: u32,
-    pub server_addr: String,
-    pub server_port: u32,
-
-    pub clients_num: usize,
+#[derive(Default, Debug)]
+pub enum MultiplayerOpts {
+    Server {
+        port: u16,
+    },
+    Client(SocketAddr),
+    #[default]
+    None,
 }
 
 /// Game state.
@@ -118,7 +144,7 @@ macro_rules! rnd_round {
 }
 
 impl State {
-    pub fn new(b_opt: BasicOpts, mp_opt: MultiplayerOpts) -> crate::Result<Self> {
+    pub fn new(b_opt: BasicOpts) -> crate::Result<Self> {
         let width = b_opt.width.min(MAX_WIDTH);
         let height = b_opt.height.min(MAX_HEIGHT);
 
@@ -130,14 +156,14 @@ impl State {
             .iter_mut()
             .enumerate()
             .for_each(|(i, v)| *v = Player(i as u32 + 1));
-        let comp_players = all_players[mp_opt.clients_num..].to_vec();
-        let ui_players = all_players[..mp_opt.clients_num].to_vec();
+        let comp_players = all_players[b_opt.clients..].to_vec();
+        let ui_players = all_players[..b_opt.clients].to_vec();
 
-        let mut kings: Vec<King> = (mp_opt.clients_num..7)
+        let mut kings: Vec<King> = (b_opt.clients..7)
             .map(|i| {
                 King::new(
                     Player(i as u32 + 1),
-                    match i + mp_opt.clients_num {
+                    match i + b_opt.clients {
                         1 => Strategy::Opportunist,
                         2 => Strategy::OneGreedy,
                         3 => Strategy::None,
