@@ -9,9 +9,9 @@ pub struct UI {
     cursor: Pos,
     /// Number of tiles to skip in the beginning of
     /// every line.
-    xskip: u32,
+    pub xskip: u16,
     /// Total max number of tiles in horizontal direction.
-    xlen: u32,
+    pub xlen: u16,
 }
 
 pub struct Timeline {
@@ -82,29 +82,29 @@ pub struct MultiplayerOpts {
 /// Game state.
 pub struct State {
     /// The map grid.
-    grid: Grid,
+    pub grid: Grid,
     /// The array of flag grids of each players.
-    fgs: [FlagGrid; MAX_PLAYERS],
+    pub fgs: [FlagGrid; MAX_PLAYERS],
     /// AI opponents.
-    kings: Vec<King>,
+    pub kings: Vec<King>,
 
-    timeline: Timeline,
-    show_timeline: bool,
+    pub timeline: Timeline,
+    pub show_timeline: bool,
 
-    countries: [Country; MAX_PLAYERS],
+    pub countries: [Country; MAX_PLAYERS],
 
-    time: u64,
+    pub time: u64,
     /// The map seed.
-    seed: u64,
+    pub seed: u64,
     /// Player id of the human controlled player.
     controlled: Player,
 
-    conditions: Option<u32>,
-    inequality: Option<u32>,
+    pub conditions: Option<u32>,
+    pub inequality: Option<u32>,
 
-    speed: Speed,
-    prev_speed: Speed,
-    difficulty: Difficulty,
+    pub speed: Speed,
+    pub prev_speed: Speed,
+    pub difficulty: Difficulty,
 }
 
 macro_rules! rnd_round {
@@ -504,8 +504,8 @@ impl UI {
 
         Self {
             cursor,
-            xskip: (xskip_x2 as u32 + 1) / 2,
-            xlen: (xrightmost_x2 as u32 + 1) / 2 - xskip_x2 as u32 / 2,
+            xskip: (xskip_x2 as u16 + 1) / 2,
+            xlen: (xrightmost_x2 as u16 + 1) / 2 - xskip_x2 as u16 / 2,
         }
     }
 
