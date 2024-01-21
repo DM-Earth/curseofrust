@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 curseofrust = { path = ".." }
 curseofrust-cli-parser = { path = "../cli" }
+fastrand = "2.0"
+crossterm = "0.27"
