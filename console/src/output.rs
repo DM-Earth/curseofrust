@@ -11,6 +11,7 @@ use curseofrust::{Player, Pos};
 
 use crate::State;
 
+const GRASS: &'static str = " - ";
 const MOUNTAIN: &'static str = "/\\^";
 const MINE: &'static str = "/$\\";
 const VILLAGE: &'static str = " n ";
@@ -35,11 +36,11 @@ fn player_color(player: Player) -> Color {
         Player::NEUTRAL => Color::Yellow,
         Player(1) => Color::Green,
         Player(2) => Color::Blue,
-        Player(3) => Color::Red,
-        Player(4) => Color::Yellow,
+        Player(3) => Color::Yellow,
+        Player(4) => Color::Red,
         Player(5) => Color::Magenta,
         Player(6) => Color::Cyan,
-        Player(7) => Color::Black,
+        Player(7) => Color::DarkGrey,
         _ => Color::Reset,
     }
 }
@@ -47,7 +48,7 @@ fn player_color(player: Player) -> Color {
 #[inline]
 fn pop_to_symbol(pop: u16) -> &'static str {
     match pop {
-        0 => "   ",
+        0 => GRASS,
         1..=3 => " . ",
         4..=6 => ".. ",
         7..=12 => "...",
@@ -63,14 +64,9 @@ fn pop_to_symbol(pop: u16) -> &'static str {
 pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Error> {
     queue!(st.out, cursor::MoveTo(0, 0))?;
     for y in 0..st.s.grid.height() {
-        if y % 2 == 0 {
+        if y % 2 != 0 {
             queue!(st.out, style::Print("  "))?;
         }
-        /*
-        for _ in 0..st.ui.xskip {
-            queue!(st.out, style::Print("    "))?;
-        }
-        */
 
         for x in 0..st.s.grid.width() {
             let pos = Pos(x as i32, y as i32);
@@ -128,7 +124,10 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
                             &MINE[0..1],
                         )),
                         style::PrintStyledContent(StyledContent::new(
-                            player_style(*owner),
+                            ContentStyle {
+                                foreground_color: Some(Color::Yellow),
+                                ..player_style(*owner)
+                            },
                             &MINE[1..2],
                         )),
                         style::PrintStyledContent(StyledContent::new(
