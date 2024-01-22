@@ -3,8 +3,9 @@
 use std::io::Write;
 
 use crossterm::{
-    queue,
-    style::{self, Color, ContentStyle, StyledContent},
+    cursor, queue,
+    style::{self, Attribute, Color, ContentStyle, StyledContent},
+    terminal::{self, ClearType},
 };
 use curseofrust::{Player, Pos};
 
@@ -60,10 +61,16 @@ fn pop_to_symbol(pop: u16) -> &'static str {
 }
 
 pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Error> {
+    queue!(st.out, cursor::MoveTo(0, 0))?;
     for y in 0..st.s.grid.height() {
+        if y % 2 == 0 {
+            queue!(st.out, style::Print("  "))?;
+        }
+        /*
         for _ in 0..st.ui.xskip {
             queue!(st.out, style::Print("    "))?;
         }
+        */
 
         for x in 0..st.s.grid.width() {
             let pos = Pos(x as i32, y as i32);
@@ -79,7 +86,16 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
                     } else {
                         ' '
                     };
-                    queue!(st.out, style::Print(l_sym))?;
+                    queue!(
+                        st.out,
+                        style::PrintStyledContent(StyledContent::new(
+                            ContentStyle {
+                                attributes: style::Attribute::Bold.into(),
+                                ..Default::default()
+                            },
+                            l_sym
+                        ))
+                    )?;
                 };
             }
             match tile {
@@ -149,8 +165,11 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
                         style::PrintStyledContent(StyledContent::new(style, &symbol[0..1]))
                     };
                     let m = style::PrintStyledContent(StyledContent::new(style, &symbol[1..2]));
-                    let r = if st.s.fgs[owner.0 as usize].is_flagged(pos) {
-                        style::PrintStyledContent(StyledContent::new(player_style(*owner), "P"))
+                    let r = if st.s.fgs[st.s.controlled.0 as usize].is_flagged(pos) {
+                        style::PrintStyledContent(StyledContent::new(
+                            player_style(st.s.controlled),
+                            "P",
+                        ))
                     } else {
                         style::PrintStyledContent(StyledContent::new(style, &symbol[2..3]))
                     };
@@ -162,5 +181,30 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
 
         queue!(st.out, style::Print("\n\r"))?;
     }
+
+    queue!(
+        st.out,
+        terminal::Clear(ClearType::CurrentLine),
+        style::PrintStyledContent(StyledContent::new(
+            ContentStyle {
+                foreground_color: Some(player_color(st.s.controlled)),
+                attributes: Attribute::Reverse.into(),
+                ..Default::default()
+            },
+            format!("  {}  ", st.s.countries[st.s.controlled.0 as usize].gold)
+        )),
+        style::Print("    ")
+    )?;
+
+    if let Some(tile) = st.s.grid.tile(st.ui.cursor) {
+        for (p, pop) in tile.units().into_iter().enumerate() {
+            queue!(
+                st.out,
+                style::Print("  "),
+                style::PrintStyledContent(StyledContent::new(player_style(Player(p as u32)), *pop))
+            )?;
+        }
+    }
+
     Ok(())
 }

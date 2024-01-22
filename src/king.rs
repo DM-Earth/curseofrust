@@ -293,7 +293,8 @@ impl King {
             Strategy::OneGreedy => action!(action_one_greedy),
             Strategy::PersistentGreedy => action!(action_persistent_greedy),
             Strategy::Opportunist => action!(action_opportunist),
-            Strategy::Noble => action!(action_noble),
+            //TODO: fix noble
+            Strategy::Noble => action!(action_opportunist),
             _ => (),
         }
     }

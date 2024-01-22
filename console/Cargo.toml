@@ -9,4 +9,6 @@ edition = "2021"
 curseofrust = { path = ".." }
 curseofrust-cli-parser = { path = "../cli" }
 fastrand = "2.0"
-crossterm = "0.27"
+crossterm = { version = "0.27", features = ["event-stream"] }
+futures-lite = "2.2"
+async-io = "2.3"
