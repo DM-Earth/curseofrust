@@ -64,8 +64,8 @@ fn pop_to_symbol(pop: u16) -> &'static str {
 pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Error> {
     queue!(st.out, cursor::MoveTo(0, 0))?;
     for y in 0..st.s.grid.height() {
-        if y % 2 != 0 {
-            queue!(st.out, style::Print("  "))?;
+        if y % 2 == 0 {
+            queue!(st.out, style::Print(" "))?;
         }
 
         for x in 0..st.s.grid.width() {
