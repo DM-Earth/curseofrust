@@ -1,3 +1,5 @@
+use cacao::foundation::{id, nil};
+use cacao::objc::{class, msg_send, sel, sel_impl};
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -10,13 +12,16 @@ use curseofrust::state::State;
 
 pub struct CorApp {
     game_window: Window,
-    state: Option<State>,
+    about_window: Window,
+    _state: Option<State>,
 }
 
 impl AppDelegate for CorApp {
     fn did_finish_launching(&self) {
         self.game_window.set_content_size(200, 150);
         self.game_window.set_title("corCocoa");
+        self.about_window.set_content_size(300, 150);
+        self.about_window.set_title("About");
         self.game_window.show();
         App::set_menu(Self::menu());
         // Self::change_app_menu_name("CoR");
@@ -26,21 +31,22 @@ impl AppDelegate for CorApp {
 }
 
 impl CorApp {
-    pub fn new()->Self{
-        Self{
+    pub fn new() -> Self {
+        Self {
             game_window: Default::default(),
-            state: None,
+            about_window: Default::default(),
+            _state: None,
         }
     }
 
     fn menu() -> Vec<Menu> {
+        let about = MenuItem::new("About Curse of Rust").action(|| {
+            let app=app_from_objc::<Self>();
+            app.about_window.show();
+        });
         vec![Menu::new(
             "corCocoa",
-            vec![
-                MenuItem::About("Curse of Rust".into()),
-                MenuItem::Separator,
-                MenuItem::Quit,
-            ],
+            vec![about, MenuItem::Separator, MenuItem::Quit],
         )]
     }
 
@@ -49,8 +55,6 @@ impl CorApp {
         use cacao::foundation::NSString;
         let string: NSString = NSString::new(name);
         unsafe {
-            use cacao::foundation::id;
-            use cacao::objc::{class, msg_send, sel, sel_impl};
             let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
             let main_menu: id = msg_send![shared_app, mainMenu];
             let item_zero: id = msg_send![main_menu, itemAtIndex:0];
@@ -65,9 +69,7 @@ impl CorApp {
         let string: NSString = NSString::new(name);
         unsafe {
             use cacao::core_graphics::geometry::{CGPoint, CGRect, CGSize};
-            use cacao::foundation::{id, nil, NSMutableDictionary};
-            use cacao::objc::{class, msg_send, sel, sel_impl};
-
+            use cacao::foundation::NSMutableDictionary;
             let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
             let main_menu: id = msg_send![shared_app, mainMenu];
             let item_zero: id = msg_send![main_menu, itemAtIndex:0];
@@ -79,8 +81,8 @@ impl CorApp {
             dict.insert(NSString::new("NSFontAttributeName"), font);
             let dict_objc: id = dict.into_inner();
             let size: CGSize = msg_send![string, sizeWithAttributes:dict_objc];
-            let mut image: id = msg_send![class!(NSImage), alloc];
-            image = msg_send![image, initWithSize:size];
+            let alloc: id = msg_send![class!(NSImage), alloc];
+            let image: id = msg_send![alloc, initWithSize:size];
             let _: () = msg_send![image, lockFocus];
             let rect: CGRect = CGRect::new(&CGPoint::new(0.0, 0.5), &size);
             let _: () =
@@ -97,9 +99,6 @@ impl CorApp {
     fn set_app_icon() {
         let image: Image = Image::with_data(include_bytes!("../images/icon.gif"));
         unsafe {
-            use cacao::foundation::id;
-            use cacao::objc::{class, msg_send, sel, sel_impl};
-
             let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
             let _: () = msg_send![shared_app, setApplicationIconImage:image];
         }
