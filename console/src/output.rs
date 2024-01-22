@@ -16,7 +16,7 @@ const MOUNTAIN: &'static str = "/\\^";
 const MINE: &'static str = "/$\\";
 const VILLAGE: &'static str = " n ";
 const TOWN: &'static str = "i=i";
-const FORTRESS: &'static str = "W=W";
+const FORTRESS: &'static str = "W#W";
 
 fn player_style(player: Player) -> ContentStyle {
     ContentStyle {
