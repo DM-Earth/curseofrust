@@ -11,7 +11,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct UI {
-    cursor: Pos,
+    pub cursor: Pos,
     /// Number of tiles to skip in the beginning of
     /// every line.
     pub xskip: u16,
@@ -123,7 +123,7 @@ pub struct State {
     /// The map seed.
     pub seed: u64,
     /// Player id of the human controlled player.
-    controlled: Player,
+    pub controlled: Player,
 
     pub conditions: Option<u32>,
     pub inequality: Option<u32>,
@@ -426,11 +426,11 @@ impl State {
                                 unreachable!()
                             };
                             units[p] = (units[p] as i32 + dpop).max(0) as u16;
-                            let Some(Tile::Habitable { units, .. }) = self.grid.tile_mut(Pos(i, j))
-                            else {
-                                unreachable!()
-                            };
-                            units[p] = (units[p] as i32 - dpop).max(0) as u16;
+                            if let Some(Tile::Habitable { units, .. }) =
+                                self.grid.tile_mut(Pos(i, j))
+                            {
+                                units[p] = (units[p] as i32 - dpop).max(0) as u16;
+                            }
                         }
                     }
                 }

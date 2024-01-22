@@ -569,7 +569,7 @@ impl Tile {
     /// Whether this tile is visible.
     #[inline]
     pub fn is_visible(&self) -> bool {
-        matches!(self, Self::Void)
+        !matches!(self, Self::Void)
     }
 }
 

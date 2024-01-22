@@ -26,7 +26,7 @@ pub use grid::{FlagGrid, Grid, Pos, FLAG_POWER};
 pub use king::{Country, King, Strategy};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
-pub struct Player(u32);
+pub struct Player(pub u32);
 
 impl Player {
     pub const NEUTRAL: Self = Self(0);

@@ -7,7 +7,6 @@ pub struct StencilWrapper(pub Stencil);
 impl std::str::FromStr for StencilWrapper {
     type Err = Error;
 
-    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(match s {
             "rhombus" => Stencil::Rhombus,
@@ -29,7 +28,6 @@ pub struct DifficultyWrapper(pub Difficulty);
 impl std::str::FromStr for DifficultyWrapper {
     type Err = Error;
 
-    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(match s {
             "ee" => Difficulty::Easiest,
@@ -53,7 +51,6 @@ pub struct SpeedWrapper(pub Speed);
 impl std::str::FromStr for SpeedWrapper {
     type Err = Error;
 
-    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(match s {
             "p" => Speed::Pause,
