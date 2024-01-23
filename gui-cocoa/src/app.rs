@@ -1,5 +1,7 @@
-use cacao::foundation::{id, nil};
+use cacao::appkit::window::WindowDelegate;
+use cacao::foundation::{id, nil, NSString};
 use cacao::objc::{class, msg_send, sel, sel_impl};
+use cacao::text::{Font, Label};
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -11,8 +13,10 @@ use cacao::{
 use curseofrust::state::State;
 
 pub struct CorApp {
+    // View-associated
     game_window: Window,
-    about_window: Window,
+    about_window: Window<AboutWindow>,
+    // Game-associated
     _state: Option<State>,
 }
 
@@ -20,8 +24,6 @@ impl AppDelegate for CorApp {
     fn did_finish_launching(&self) {
         self.game_window.set_content_size(200, 150);
         self.game_window.set_title("corCocoa");
-        self.about_window.set_content_size(300, 150);
-        self.about_window.set_title("About");
         self.game_window.show();
         App::set_menu(Self::menu());
         // Self::change_app_menu_name("CoR");
@@ -34,14 +36,14 @@ impl CorApp {
     pub fn new() -> Self {
         Self {
             game_window: Default::default(),
-            about_window: Default::default(),
+            about_window: Window::with(Default::default(), AboutWindow::new()),
             _state: None,
         }
     }
 
     fn menu() -> Vec<Menu> {
         let about = MenuItem::new("About Curse of Rust").action(|| {
-            let app=app_from_objc::<Self>();
+            let app = app_from_objc::<Self>();
             app.about_window.show();
         });
         vec![Menu::new(
@@ -105,7 +107,6 @@ impl CorApp {
     }
 }
 
-
 /// Swim through the objective sea to find a rusty old pal.
 fn app_from_objc<T>() -> &'static T {
     unsafe {
@@ -113,5 +114,45 @@ fn app_from_objc<T>() -> &'static T {
         let objc_delegate: id = msg_send![objc_app, delegate];
         let rs_delegate_ptr: usize = *(&mut *objc_delegate).get_ivar("rstAppPtr");
         &*(rs_delegate_ptr as *const T)
+    }
+}
+
+struct AboutWindow {
+    text: Label,
+    /// Use `Option` to avoid alloc when `new()`.\
+    /// Will always be `Some` after `did_load()`. Just unwrap it.
+    window: Option<Window>,
+}
+
+impl AboutWindow {
+    /// Create the object without `alloc` and `init` on the objc side.
+    fn new() -> Self {
+        Self {
+            text: Default::default(),
+            window: None,
+        }
+    }
+}
+
+impl WindowDelegate for AboutWindow {
+    const NAME: &'static str = "CORAboutWindow";
+
+    fn did_load(&mut self, window: Window) {
+        self.window = Some(window);
+        self.window.as_mut().unwrap().set_content_size(300, 150);
+        self.window.as_mut().unwrap().set_title("About");
+
+        unsafe {
+            let cls = class!(NSFont);
+            let default_size: f64 = msg_send![cls, labelFontSize];
+            let font_name: NSString = NSString::new("Menlo");
+            let font: id = msg_send![cls, fontWithName:font_name size:default_size];
+            self.text.objc.with_mut(|obj| {
+                let _: () = msg_send![obj, setFont:font];
+            })
+        }
+        self.text.set_text(include_str!("../ascii-art.txt"));
+
+        self.window.as_mut().unwrap().set_content_view(&self.text);
     }
 }
