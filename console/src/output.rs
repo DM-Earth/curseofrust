@@ -65,7 +65,7 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
     queue!(st.out, cursor::MoveTo(0, 0))?;
     for y in 0..st.s.grid.height() {
         if y % 2 == 0 {
-            queue!(st.out, style::Print(" "))?;
+            queue!(st.out, style::Print("  "))?;
         }
 
         for x in 0..st.s.grid.width() {
@@ -165,10 +165,7 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
                     };
                     let m = style::PrintStyledContent(StyledContent::new(style, &symbol[1..2]));
                     let r = if st.s.fgs[st.s.controlled.0 as usize].is_flagged(pos) {
-                        style::PrintStyledContent(StyledContent::new(
-                            player_style(st.s.controlled),
-                            "P",
-                        ))
+                        style::PrintStyledContent(StyledContent::new(Default::default(), "P"))
                     } else {
                         style::PrintStyledContent(StyledContent::new(style, &symbol[2..3]))
                     };
