@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use cacao::appkit::window::{WindowConfig, WindowDelegate, WindowStyle};
 use cacao::foundation::{id, nil, NSString};
 use cacao::objc::{class, msg_send, sel, sel_impl};
@@ -59,7 +61,7 @@ impl CorApp {
     }
 
     /// Loses main menu's bold style.
-    fn change_app_menu_name(name: &str) {
+    fn _change_app_menu_name(name: &str) {
         let string: NSString = NSString::new(name);
         unsafe {
             let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
@@ -71,7 +73,7 @@ impl CorApp {
     }
 
     /// Very raw, very ugly.
-    fn draw_and_set_app_menu_name(name: &str) {
+    fn _draw_and_set_app_menu_name(name: &str) {
         let string: NSString = NSString::new(name);
         unsafe {
             use cacao::core_graphics::geometry::{CGPoint, CGRect, CGSize};
@@ -123,9 +125,7 @@ fn app_from_objc<T>() -> &'static T {
 
 struct AboutWindow {
     text: Label,
-    /// Use `Option` to avoid alloc when `new()`.\
-    /// Will always be `Some` after `did_load()`. Just unwrap it.
-    window: Option<Window>,
+    window: OnceWindow,
 }
 
 impl AboutWindow {
@@ -133,7 +133,7 @@ impl AboutWindow {
     fn new() -> Self {
         Self {
             text: Default::default(),
-            window: None,
+            window: OnceWindow::new(),
         }
     }
 }
@@ -142,10 +142,11 @@ impl WindowDelegate for AboutWindow {
     const NAME: &'static str = "CORAboutWindow";
 
     fn did_load(&mut self, window: Window) {
-        self.window = Some(window);
-        self.window.as_mut().unwrap().set_content_size(390, 120);
-        self.window.as_mut().unwrap().set_title("About");
+        self.window.set(window);
+        self.window.set_content_size(390, 120);
+        self.window.set_title("About");
 
+        // Set font as Menlo.
         unsafe {
             let cls = class!(NSFont);
             let default_size: f64 = msg_send![cls, labelFontSize];
@@ -156,8 +157,38 @@ impl WindowDelegate for AboutWindow {
             })
         }
         self.text.set_text(include_str!("../ascii-art.txt"));
-        //self.text.set_text_alignment(TextAlign::Justified);
 
-        self.window.as_mut().unwrap().set_content_view(&self.text);
+        self.window.set_content_view(&self.text);
+    }
+}
+
+/// Avoid actually creating a [`Window`] before assigning it.\
+/// Not robust, but enough for private use.
+struct OnceWindow(Option<Window>);
+
+impl Deref for OnceWindow {
+    type Target = Window;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().unwrap()
+    }
+}
+
+impl DerefMut for OnceWindow {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut().unwrap()
+    }
+}
+
+impl OnceWindow {
+    fn new() -> Self {
+        Self(None)
+    }
+
+    fn set(&mut self, content: Window) {
+        if self.0.is_none() {
+            self.0 = Some(content);
+        }
     }
 }
