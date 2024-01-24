@@ -1,7 +1,7 @@
 use cacao::appkit::window::{WindowConfig, WindowDelegate, WindowStyle};
 use cacao::foundation::{id, nil, NSString};
 use cacao::objc::{class, msg_send, sel, sel_impl};
-use cacao::text::{Label, TextAlign};
+use cacao::text::Label;
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -34,12 +34,12 @@ impl AppDelegate for CorApp {
 
 impl CorApp {
     pub fn new() -> Self {
-        let mut config=WindowConfig::default();
+        let mut config = WindowConfig::default();
         config.set_styles(&[
             WindowStyle::Titled,
             WindowStyle::Closable,
             WindowStyle::Miniaturizable,
-            ]);
+        ]);
         Self {
             game_window: Default::default(),
             about_window: Window::with(config, AboutWindow::new()),
@@ -60,7 +60,6 @@ impl CorApp {
 
     /// Loses main menu's bold style.
     fn change_app_menu_name(name: &str) {
-        use cacao::foundation::NSString;
         let string: NSString = NSString::new(name);
         unsafe {
             let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
@@ -73,7 +72,6 @@ impl CorApp {
 
     /// Very raw, very ugly.
     fn draw_and_set_app_menu_name(name: &str) {
-        use cacao::foundation::NSString;
         let string: NSString = NSString::new(name);
         unsafe {
             use cacao::core_graphics::geometry::{CGPoint, CGRect, CGSize};
