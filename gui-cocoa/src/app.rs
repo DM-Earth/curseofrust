@@ -1,7 +1,7 @@
-use cacao::appkit::window::WindowDelegate;
+use cacao::appkit::window::{WindowConfig, WindowDelegate, WindowStyle};
 use cacao::foundation::{id, nil, NSString};
 use cacao::objc::{class, msg_send, sel, sel_impl};
-use cacao::text::{Font, Label};
+use cacao::text::{Label, TextAlign};
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -34,9 +34,15 @@ impl AppDelegate for CorApp {
 
 impl CorApp {
     pub fn new() -> Self {
+        let mut config=WindowConfig::default();
+        config.set_styles(&[
+            WindowStyle::Titled,
+            WindowStyle::Closable,
+            WindowStyle::Miniaturizable,
+            ]);
         Self {
             game_window: Default::default(),
-            about_window: Window::with(Default::default(), AboutWindow::new()),
+            about_window: Window::with(config, AboutWindow::new()),
             _state: None,
         }
     }
@@ -139,7 +145,7 @@ impl WindowDelegate for AboutWindow {
 
     fn did_load(&mut self, window: Window) {
         self.window = Some(window);
-        self.window.as_mut().unwrap().set_content_size(300, 150);
+        self.window.as_mut().unwrap().set_content_size(390, 120);
         self.window.as_mut().unwrap().set_title("About");
 
         unsafe {
@@ -152,6 +158,7 @@ impl WindowDelegate for AboutWindow {
             })
         }
         self.text.set_text(include_str!("../ascii-art.txt"));
+        //self.text.set_text_alignment(TextAlign::Justified);
 
         self.window.as_mut().unwrap().set_content_view(&self.text);
     }
