@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+use build_time::build_time_local;
 use cacao::appkit::window::{WindowConfig, WindowDelegate, WindowStyle};
 use cacao::foundation::{id, nil, NSString};
 use cacao::objc::{class, msg_send, sel, sel_impl};
@@ -19,7 +20,7 @@ pub struct CorApp {
     game_window: Window,
     about_window: Window<AboutWindow>,
     // Game-associated
-    _state: Option<State>,
+    _state: OnceAssign<State>,
 }
 
 impl AppDelegate for CorApp {
@@ -45,7 +46,7 @@ impl CorApp {
         Self {
             game_window: Default::default(),
             about_window: Window::with(config, AboutWindow::new()),
-            _state: None,
+            _state: OnceAssign::new(),
         }
     }
 
@@ -125,7 +126,7 @@ fn app_from_objc<T>() -> &'static T {
 
 struct AboutWindow {
     text: Label,
-    window: OnceWindow,
+    window: OnceAssign<Window>,
 }
 
 impl AboutWindow {
@@ -133,7 +134,7 @@ impl AboutWindow {
     fn new() -> Self {
         Self {
             text: Default::default(),
-            window: OnceWindow::new(),
+            window: OnceAssign::new(),
         }
     }
 }
@@ -143,7 +144,7 @@ impl WindowDelegate for AboutWindow {
 
     fn did_load(&mut self, window: Window) {
         self.window.set(window);
-        self.window.set_content_size(390, 120);
+        self.window.set_content_size(390, 125);
         self.window.set_title("About");
 
         // Set font as Menlo.
@@ -156,18 +157,18 @@ impl WindowDelegate for AboutWindow {
                 let _: () = msg_send![obj, setFont:font];
             })
         }
-        self.text.set_text(include_str!("../ascii-art.txt"));
+        self.text.set_text(format!("{}{}",include_str!("../ascii-art.txt"),build_time_local!("%F %T %:z")));
 
         self.window.set_content_view(&self.text);
     }
 }
 
-/// Avoid actually creating a [`Window`] before assigning it.\
+/// Avoid actually creating something before assigning it.\
 /// Not robust, but enough for private use.
-struct OnceWindow(Option<Window>);
+struct OnceAssign<T>(Option<T>);
 
-impl Deref for OnceWindow {
-    type Target = Window;
+impl<T> Deref for OnceAssign<T> {
+    type Target = T;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -175,18 +176,18 @@ impl Deref for OnceWindow {
     }
 }
 
-impl DerefMut for OnceWindow {
+impl<T> DerefMut for OnceAssign<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.as_mut().unwrap()
     }
 }
 
-impl OnceWindow {
+impl<T> OnceAssign<T> {
     fn new() -> Self {
         Self(None)
     }
 
-    fn set(&mut self, content: Window) {
+    fn set(&mut self, content: T) {
         if self.0.is_none() {
             self.0 = Some(content);
         }

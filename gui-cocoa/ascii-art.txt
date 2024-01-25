@@ -8,3 +8,4 @@ _/ /  \/ | |X _/ __/ __\  /   \   /  | |___| | | |  / __/_  __/
 
 Core by Yjn024
 Cocoa GUI frontend by C191239
+Build time: 
