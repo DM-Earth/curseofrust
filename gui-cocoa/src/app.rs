@@ -1,4 +1,6 @@
+use std::array::from_fn;
 use std::ops::{Deref, DerefMut};
+use std::time::UNIX_EPOCH;
 
 use build_time::build_time_local;
 use cacao::appkit::window::{WindowConfig, WindowDelegate, WindowStyle};
@@ -14,6 +16,7 @@ use cacao::{
     image::Image,
 };
 use curseofrust::state::State;
+use curseofrust::{MAX_HEIGHT, MAX_WIDTH};
 
 pub struct CorApp {
     // View-associated
@@ -21,6 +24,7 @@ pub struct CorApp {
     about_window: Window<AboutWindow>,
     // Game-associated
     _state: OnceAssign<State>,
+    tile_variant: OnceAssign<[[i16; MAX_WIDTH as usize]; MAX_HEIGHT as usize]>,
 }
 
 impl AppDelegate for CorApp {
@@ -47,6 +51,7 @@ impl CorApp {
             game_window: Default::default(),
             about_window: Window::with(config, AboutWindow::new()),
             _state: OnceAssign::new(),
+            tile_variant: OnceAssign::new(),
         }
     }
 
@@ -112,6 +117,13 @@ impl CorApp {
             let _: () = msg_send![shared_app, setApplicationIconImage:image];
         }
     }
+
+    /// Starts the game.
+    fn run(&mut self) {
+        fastrand::seed(UNIX_EPOCH.elapsed().unwrap_or_default().as_secs());
+        self.tile_variant
+            .set(from_fn(|_i| from_fn(|_j| fastrand::i16(-1..i16::MAX) + 1)));
+    }
 }
 
 /// Swim through the objective sea to find a rusty old pal.
@@ -157,15 +169,19 @@ impl WindowDelegate for AboutWindow {
                 let _: () = msg_send![obj, setFont:font];
             })
         }
-        self.text.set_text(format!("{}{}",include_str!("../ascii-art.txt"),build_time_local!("%F %T %:z")));
+        self.text.set_text(format!(
+            "{}{}",
+            include_str!("../ascii-art.txt"),
+            build_time_local!("%F %T %:z")
+        ));
 
         self.window.set_content_view(&self.text);
     }
 }
 
-/// Avoid actually creating something before assigning it.\
+/// Avoid actually creating something before assigning to it.\
 /// Not robust, but enough for private use.
-struct OnceAssign<T>(Option<T>);
+struct OnceAssign<T>(pub Option<T>);
 
 impl<T> Deref for OnceAssign<T> {
     type Target = T;

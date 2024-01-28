@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 curseofrust = { path = ".." }
 build-time = "0.1.3"
+fastrand = "2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cacao = "0.3.2"
