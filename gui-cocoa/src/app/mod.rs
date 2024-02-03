@@ -1,29 +1,34 @@
 use std::array::from_fn;
-use std::ops::{Deref, DerefMut};
+use std::sync::Once;
 use std::time::UNIX_EPOCH;
 
+use crate::util::{app_from_objc, OnceAssign};
 use build_time::build_time_local;
-use cacao::appkit::window::{WindowConfig, WindowDelegate, WindowStyle};
-use cacao::foundation::{id, nil, NSString};
-use cacao::objc::{class, msg_send, sel, sel_impl};
-use cacao::text::Label;
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
         window::Window,
+        window::{WindowConfig, WindowDelegate, WindowStyle},
         App, AppDelegate,
     },
+    events::EventModifierFlag,
+    foundation::{id, nil, NSString},
     image::Image,
+    objc::{class, msg_send, sel, sel_impl},
+    text::Label,
 };
 use curseofrust::state::State;
 use curseofrust::{MAX_HEIGHT, MAX_WIDTH};
+
+mod config;
 
 pub struct CorApp {
     // View-associated
     game_window: Window,
     about_window: Window<AboutWindow>,
+    config_window: Window<config::ConfigWindow>,
     // Game-associated
-    _state: OnceAssign<State>,
+    state: OnceAssign<State>,
     tile_variant: OnceAssign<[[i16; MAX_WIDTH as usize]; MAX_HEIGHT as usize]>,
 }
 
@@ -41,16 +46,11 @@ impl AppDelegate for CorApp {
 
 impl CorApp {
     pub fn new() -> Self {
-        let mut config = WindowConfig::default();
-        config.set_styles(&[
-            WindowStyle::Titled,
-            WindowStyle::Closable,
-            WindowStyle::Miniaturizable,
-        ]);
         Self {
             game_window: Default::default(),
-            about_window: Window::with(config, AboutWindow::new()),
-            _state: OnceAssign::new(),
+            about_window: Window::with(fixed_size_window_config(), AboutWindow::new()),
+            config_window: Window::with(fixed_size_window_config(), config::ConfigWindow::new()),
+            state: OnceAssign::new(),
             tile_variant: OnceAssign::new(),
         }
     }
@@ -60,10 +60,49 @@ impl CorApp {
             let app = app_from_objc::<Self>();
             app.about_window.show();
         });
-        vec![Menu::new(
-            "corCocoa",
-            vec![about, MenuItem::Separator, MenuItem::Quit],
-        )]
+        let preferences = MenuItem::new("Preferences")
+            .modifiers(&[EventModifierFlag::Command])
+            .key(",")
+            .action(|| {
+                let app = app_from_objc::<Self>();
+                app.config_window.show();
+            });
+        let save_config = MenuItem::new("Save Preferences")
+            .modifiers(&[EventModifierFlag::Command])
+            .key("s")
+            .action(|| {
+                let app = app_from_objc::<Self>();
+                if app.config_window.is_key() {
+                    todo!()
+                }
+            });
+        let restore_default_config = MenuItem::new("Restore Default Preferences").action(|| {
+            let app = app_from_objc::<Self>();
+            if app.config_window.is_key() {
+                todo!()
+            }
+        });
+        vec![
+            Menu::new(
+                "CoR Cocoa",
+                vec![
+                    about,
+                    MenuItem::Separator,
+                    preferences,
+                    MenuItem::Separator,
+                    MenuItem::Quit,
+                ],
+            ),
+            Menu::new(
+                "File",
+                vec![
+                    MenuItem::CloseWindow,
+                    MenuItem::Separator,
+                    save_config,
+                    restore_default_config,
+                ],
+            ),
+        ]
     }
 
     /// Loses main menu's bold style.
@@ -111,11 +150,14 @@ impl CorApp {
     /// Icon is hard-coded, so call this only once.\
     /// Just modify this fn if you want to change icon.
     fn set_app_icon() {
-        let image: Image = Image::with_data(include_bytes!("../images/icon.gif"));
-        unsafe {
-            let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
-            let _: () = msg_send![shared_app, setApplicationIconImage:image];
-        }
+        static ONCE: Once = Once::new();
+        ONCE.call_once(|| {
+            let image: Image = Image::with_data(include_bytes!("../../images/icon.gif"));
+            unsafe {
+                let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
+                let _: () = msg_send![shared_app, setApplicationIconImage:image];
+            }
+        })
     }
 
     /// Starts the game.
@@ -123,22 +165,25 @@ impl CorApp {
         fastrand::seed(UNIX_EPOCH.elapsed().unwrap_or_default().as_secs());
         self.tile_variant
             .set(from_fn(|_i| from_fn(|_j| fastrand::i16(-1..i16::MAX) + 1)));
+        todo!()
     }
 }
 
-/// Swim through the objective sea to find a rusty old pal.
-fn app_from_objc<T>() -> &'static T {
-    unsafe {
-        let objc_app: id = msg_send![class!(RSTApplication), sharedApplication];
-        let objc_delegate: id = msg_send![objc_app, delegate];
-        let rs_delegate_ptr: usize = *(&mut *objc_delegate).get_ivar("rstAppPtr");
-        &*(rs_delegate_ptr as *const T)
-    }
+#[inline]
+fn fixed_size_window_config() -> WindowConfig {
+    let mut config = WindowConfig::default();
+    config.set_styles(&[
+        WindowStyle::Titled,
+        WindowStyle::Closable,
+        WindowStyle::Miniaturizable,
+    ]);
+    config
 }
 
 struct AboutWindow {
-    text: Label,
     window: OnceAssign<Window>,
+
+    text: Label,
 }
 
 impl AboutWindow {
@@ -152,7 +197,7 @@ impl AboutWindow {
 }
 
 impl WindowDelegate for AboutWindow {
-    const NAME: &'static str = "CORAboutWindow";
+    const NAME: &'static str = "CORAboutWindowDelegate";
 
     fn did_load(&mut self, window: Window) {
         self.window.set(window);
@@ -169,43 +214,11 @@ impl WindowDelegate for AboutWindow {
                 let _: () = msg_send![obj, setFont:font];
             })
         }
-        self.text.set_text(format!(
-            "{}{}",
-            include_str!("../ascii-art.txt"),
+        self.text.set_text(concat!(
+            include_str!("../../ascii-art.txt"),
             build_time_local!("%F %T %:z")
         ));
 
         self.window.set_content_view(&self.text);
-    }
-}
-
-/// Avoid actually creating something before assigning to it.\
-/// Not robust, but enough for private use.
-struct OnceAssign<T>(pub Option<T>);
-
-impl<T> Deref for OnceAssign<T> {
-    type Target = T;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        self.0.as_ref().unwrap()
-    }
-}
-
-impl<T> DerefMut for OnceAssign<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.as_mut().unwrap()
-    }
-}
-
-impl<T> OnceAssign<T> {
-    fn new() -> Self {
-        Self(None)
-    }
-
-    fn set(&mut self, content: T) {
-        if self.0.is_none() {
-            self.0 = Some(content);
-        }
     }
 }

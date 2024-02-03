@@ -1,5 +1,6 @@
 #[cfg(target_os = "macos")]
 mod app;
+mod util;
 
 fn main() {
     #[cfg(target_os = "macos")]
