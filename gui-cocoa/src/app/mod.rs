@@ -42,6 +42,15 @@ impl AppDelegate for CorApp {
         App::activate();
         Self::set_app_icon();
     }
+
+    fn should_handle_reopen(&self, has_visible_windows: bool) -> bool {
+        if has_visible_windows {
+            false
+        } else {
+            self.game_window.show();
+            true
+        }
+    }
 }
 
 impl CorApp {
