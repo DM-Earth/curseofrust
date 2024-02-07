@@ -7,14 +7,14 @@ use build_time::build_time_local;
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
-        window::Window,
-        window::{WindowConfig, WindowDelegate, WindowStyle},
+        window::{Window, WindowConfig, WindowDelegate, WindowStyle},
         App, AppDelegate,
     },
     events::EventModifierFlag,
     foundation::{id, nil, NSString},
     image::Image,
     objc::{class, msg_send, sel, sel_impl},
+    pasteboard::Pasteboard,
     text::Label,
 };
 use curseofrust::state::State;
@@ -86,14 +86,21 @@ impl CorApp {
                 let app = app_from_objc::<Self>();
                 app.text_config_window.show();
             });
-        let save_config = MenuItem::new("Save Preferences")
+        let copy_config = MenuItem::new("Copy Preferences")
             .modifiers(&[EventModifierFlag::Command])
-            .key("s")
+            .key("c")
             .action(|| {
                 let app = app_from_objc::<Self>();
-                if app.text_config_window.is_key() {
-                    todo!()
-                }
+                // Not planning to use `NSUserDefaults` because I don't want anything persisted.
+                let pb = Pasteboard::default();
+                pb.copy_text(
+                    app.text_config_window
+                        .delegate
+                        .as_ref()
+                        .unwrap()
+                        .input
+                        .get_value(),
+                );
             });
         let restore_default_config = MenuItem::new("Restore Default Preferences").action(|| {
             let app = app_from_objc::<Self>();
@@ -122,7 +129,7 @@ impl CorApp {
                 vec![
                     MenuItem::CloseWindow,
                     MenuItem::Separator,
-                    save_config,
+                    copy_config,
                     restore_default_config,
                 ],
             ),
