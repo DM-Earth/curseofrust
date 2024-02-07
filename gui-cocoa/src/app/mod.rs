@@ -92,6 +92,7 @@ impl CorApp {
             .action(|| {
                 let app = app_from_objc::<Self>();
                 // Not planning to use `NSUserDefaults` because I don't want anything persisted.
+                // @BUG: It does nothing.
                 let pb = Pasteboard::default();
                 pb.copy_text(
                     app.text_config_window
