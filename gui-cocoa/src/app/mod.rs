@@ -20,13 +20,16 @@ use cacao::{
 use curseofrust::state::State;
 use curseofrust::{MAX_HEIGHT, MAX_WIDTH};
 
+use self::config::TextualConfigWindow;
+
 mod config;
 
 pub struct CorApp {
     // View-associated
     game_window: Window,
     about_window: Window<AboutWindow>,
-    config_window: Window<config::ConfigWindow>,
+    gui_config_window: Window<config::GraphicalConfigWindow>,
+    text_config_window: Window<config::TextualConfigWindow>,
     // Game-associated
     state: OnceAssign<State>,
     tile_variant: OnceAssign<[[i16; MAX_WIDTH as usize]; MAX_HEIGHT as usize]>,
@@ -58,7 +61,14 @@ impl CorApp {
         Self {
             game_window: Default::default(),
             about_window: Window::with(fixed_size_window_config(), AboutWindow::new()),
-            config_window: Window::with(fixed_size_window_config(), config::ConfigWindow::new()),
+            gui_config_window: Window::with(
+                fixed_size_window_config(),
+                config::GraphicalConfigWindow::new(),
+            ),
+            text_config_window: Window::with(
+                fixed_size_window_config(),
+                TextualConfigWindow::new(),
+            ),
             state: OnceAssign::new(),
             tile_variant: OnceAssign::new(),
         }
@@ -74,21 +84,26 @@ impl CorApp {
             .key(",")
             .action(|| {
                 let app = app_from_objc::<Self>();
-                app.config_window.show();
+                app.text_config_window.show();
             });
         let save_config = MenuItem::new("Save Preferences")
             .modifiers(&[EventModifierFlag::Command])
             .key("s")
             .action(|| {
                 let app = app_from_objc::<Self>();
-                if app.config_window.is_key() {
+                if app.text_config_window.is_key() {
                     todo!()
                 }
             });
         let restore_default_config = MenuItem::new("Restore Default Preferences").action(|| {
             let app = app_from_objc::<Self>();
-            if app.config_window.is_key() {
-                todo!()
+            if app.text_config_window.is_key() {
+                app.text_config_window
+                    .delegate
+                    .as_ref()
+                    .unwrap()
+                    .input
+                    .set_text("-i4 -q1 -dee -W16 -H16");
             }
         });
         vec![
