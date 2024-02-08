@@ -89,7 +89,7 @@ impl CorApp {
                 let app = app_from_objc::<Self>();
                 app.text_config_window.show();
             });
-        let copy_config = MenuItem::new("Copy Preferences")
+        let mut copy_config = MenuItem::new("Copy Preferences")
             .modifiers(&[EventModifierFlag::Command])
             .key("c")
             .action(|| {
@@ -106,6 +106,11 @@ impl CorApp {
                         .get_value(),
                 );
             });
+        // Disable `Copy Preferences` menu as it's not usable.
+        if let MenuItem::Custom(obj) = copy_config {
+            let _: () = unsafe { msg_send![obj, setEnabled:cacao::foundation::NO] };
+            copy_config = MenuItem::Custom(obj);
+        }
         let restore_default_config = MenuItem::new("Restore Default Preferences").action(|| {
             let app = app_from_objc::<Self>();
             if app.text_config_window.is_key() {
@@ -121,27 +126,28 @@ impl CorApp {
                     });
             }
         });
-        vec![
-            Menu::new(
-                "CoR Cocoa",
-                vec![
-                    about,
-                    MenuItem::Separator,
-                    preferences,
-                    MenuItem::Separator,
-                    MenuItem::Quit,
-                ],
-            ),
-            Menu::new(
-                "File",
-                vec![
-                    MenuItem::CloseWindow,
-                    MenuItem::Separator,
-                    copy_config,
-                    restore_default_config,
-                ],
-            ),
-        ]
+        let main_menu = Menu::new(
+            "CoR Cocoa",
+            vec![
+                about,
+                MenuItem::Separator,
+                preferences,
+                MenuItem::Separator,
+                MenuItem::Quit,
+            ],
+        );
+        let file_menu = Menu::new(
+            "File",
+            vec![
+                MenuItem::CloseWindow,
+                MenuItem::Separator,
+                copy_config,
+                restore_default_config,
+            ],
+        );
+        // Required for disabling menu items.
+        let _: () = unsafe { msg_send![file_menu.0, setAutoenablesItems:cacao::foundation::NO] };
+        vec![main_menu, file_menu]
     }
 
     /// Loses main menu's bold style.
