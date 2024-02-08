@@ -2,7 +2,10 @@ use std::array::from_fn;
 use std::sync::Once;
 use std::time::UNIX_EPOCH;
 
-use crate::util::{app_from_objc, OnceAssign};
+use crate::{
+    app::config::ACTIVATE,
+    util::{app_from_objc, OnceAssign},
+};
 use build_time::build_time_local;
 use cacao::{
     appkit::{
@@ -111,7 +114,11 @@ impl CorApp {
                     .as_ref()
                     .unwrap()
                     .input
-                    .set_text("-i4 -q1 -dee -W16 -H16");
+                    .set_text(match fastrand::u8(1..(36 + 1)) {
+                        // In case I forgot.
+                        36 => ACTIVATE,
+                        _ => "-i4 -q1 -dee -W16 -H16",
+                    });
             }
         });
         vec![

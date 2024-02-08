@@ -1,15 +1,22 @@
 use cacao::{
-    appkit::window::{Window, WindowDelegate},
+    appkit::{
+        window::{Window, WindowDelegate},
+        FocusRingType,
+    },
     color::Color,
+    foundation::NSUInteger,
     input::TextField,
     layout::{Layout, LayoutConstraint},
     listview::{ListView, ListViewDelegate, ListViewRow},
+    objc::{msg_send, sel, sel_impl},
     text::Label,
 };
 
 use crate::util::{app_from_objc, OnceAssign};
 
 use super::CorApp;
+
+pub const ACTIVATE: &str = "activate gui config window c191239 5444";
 
 /// Uses `preferences` as a replacement of `config` to fit the
 /// Mac OS X language style.
@@ -110,11 +117,17 @@ impl WindowDelegate for TextualConfigWindow {
         self.window.set(window);
         self.window.set_content_size(300, 200);
         self.window.set_title("Preferences");
+
+        self.input.objc.with_mut(|obj| unsafe {
+            let focus_ring_type: NSUInteger = FocusRingType::None.into();
+            let _: () = msg_send![obj, setFocusRingType:focus_ring_type];
+        });
+
         self.window.set_content_view(&self.input);
     }
 
     fn will_close(&self) {
-        if self.input.get_value().to_lowercase() == "activate gui config window c191239 5444" {
+        if self.input.get_value() == ACTIVATE {
             self.input.set_text("");
             app_from_objc::<CorApp>().gui_config_window.show();
         }
