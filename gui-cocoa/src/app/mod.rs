@@ -20,7 +20,7 @@ use cacao::{
     pasteboard::Pasteboard,
     text::Label,
 };
-use curseofrust::state::State;
+use curseofrust::state::{BasicOpts, MultiplayerOpts, State};
 use curseofrust::{MAX_HEIGHT, MAX_WIDTH};
 
 use self::config::TextualConfigWindow;
@@ -211,6 +211,15 @@ impl CorApp {
         self.tile_variant
             .set(from_fn(|_i| from_fn(|_j| fastrand::i16(-1..i16::MAX) + 1)));
         todo!()
+    }
+
+    pub fn load_config(&self)->Result<(BasicOpts,MultiplayerOpts),cli_parser::Error>{
+        let mut config_str=self.text_config_window.delegate.as_ref().unwrap().input.get_value();
+        if config_str.starts_with("-"){
+            // Add fake bin name.
+            config_str="curseofrust ".to_owned()+&config_str;
+        }
+        cli_parser::parse(config_str.split_whitespace())
     }
 }
 

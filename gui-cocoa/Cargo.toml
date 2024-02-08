@@ -9,6 +9,7 @@ edition = "2021"
 curseofrust = { path = ".." }
 build-time = "0.1.3"
 fastrand = "2.0"
+cli-parser = { path = "../cli", package = "curseofrust-cli-parser" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cacao = "0.3.2"
