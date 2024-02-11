@@ -126,6 +126,10 @@ impl CorApp {
                     });
             }
         });
+        let new_game = MenuItem::new("New Game")
+            .modifiers(&[EventModifierFlag::Command])
+            .key("n")
+            .action(|| app_from_objc::<Self>().run());
         let main_menu = Menu::new(
             "CoR Cocoa",
             vec![
@@ -139,6 +143,8 @@ impl CorApp {
         let file_menu = Menu::new(
             "File",
             vec![
+                new_game,
+                MenuItem::Separator,
                 MenuItem::CloseWindow,
                 MenuItem::Separator,
                 copy_config,
@@ -213,12 +219,21 @@ impl CorApp {
         todo!()
     }
 
-    pub fn load_config(&self)->Result<(BasicOpts,MultiplayerOpts),cli_parser::Error>{
-        let mut config_str=self.text_config_window.delegate.as_ref().unwrap().input.get_value();
-        if config_str.starts_with("-"){
+    pub fn load_config(&self) -> Result<(BasicOpts, MultiplayerOpts), cli_parser::Error> {
+        let mut config_str = self
+            .text_config_window
+            .delegate
+            .as_ref()
+            .unwrap()
+            .input
+            .get_value()
+            .trim()
+            .to_owned();
+        if config_str.starts_with("-") {
             // Add fake bin name.
-            config_str="curseofrust ".to_owned()+&config_str;
+            config_str = "curseofrust ".to_owned() + &config_str;
         }
+        config_str = config_str.replace("-v", "").replace("-h", "");
         cli_parser::parse(config_str.split_whitespace())
     }
 }
