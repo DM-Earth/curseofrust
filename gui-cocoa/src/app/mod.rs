@@ -13,12 +13,14 @@ use cacao::{
         window::{Window, WindowConfig, WindowDelegate, WindowStyle},
         App, AppDelegate,
     },
+    button::Button,
     events::EventModifierFlag,
     foundation::{id, nil, NSString},
     image::Image,
     objc::{class, msg_send, sel, sel_impl},
     pasteboard::Pasteboard,
     text::Label,
+    utils::properties::ObjcProperty,
 };
 use curseofrust::state::{BasicOpts, MultiplayerOpts, State};
 use curseofrust::{MAX_HEIGHT, MAX_WIDTH};
@@ -33,6 +35,7 @@ pub struct CorApp {
     about_window: Window<AboutWindow>,
     gui_config_window: Window<config::GraphicalConfigWindow>,
     text_config_window: Window<config::TextualConfigWindow>,
+    help_window: Window<HelpWindow>,
     // Game-associated
     state: OnceAssign<State>,
     tile_variant: OnceAssign<[[i16; MAX_WIDTH as usize]; MAX_HEIGHT as usize]>,
@@ -72,6 +75,7 @@ impl CorApp {
                 fixed_size_window_config(),
                 TextualConfigWindow::new(),
             ),
+            help_window: Window::with(fixed_size_window_config(), HelpWindow::new()),
             state: OnceAssign::new(),
             tile_variant: OnceAssign::new(),
         }
@@ -130,12 +134,18 @@ impl CorApp {
             .modifiers(&[EventModifierFlag::Command])
             .key("n")
             .action(|| app_from_objc::<Self>().run());
+        let help = MenuItem::new("Curse of Rust Help").action(|| {
+            let app = app_from_objc::<Self>();
+            app.help_window.show();
+        });
         let main_menu = Menu::new(
             "CoR Cocoa",
             vec![
                 about,
                 MenuItem::Separator,
                 preferences,
+                MenuItem::Separator,
+                MenuItem::Hide,
                 MenuItem::Separator,
                 MenuItem::Quit,
             ],
@@ -151,9 +161,10 @@ impl CorApp {
                 restore_default_config,
             ],
         );
+        let help_menu = Menu::new("Help", vec![help]);
         // Required for disabling menu items.
         let _: () = unsafe { msg_send![file_menu.0, setAutoenablesItems:cacao::foundation::NO] };
-        vec![main_menu, file_menu]
+        vec![main_menu, file_menu, help_menu]
     }
 
     /// Loses main menu's bold style.
@@ -273,16 +284,8 @@ impl WindowDelegate for AboutWindow {
         self.window.set_content_size(390, 125);
         self.window.set_title("About");
 
-        // Set font as Menlo.
-        unsafe {
-            let cls = class!(NSFont);
-            let default_size: f64 = msg_send![cls, labelFontSize];
-            let font_name: NSString = NSString::new("Menlo");
-            let font: id = msg_send![cls, fontWithName:font_name size:default_size];
-            self.text.objc.with_mut(|obj| {
-                let _: () = msg_send![obj, setFont:font];
-            })
-        }
+        set_font(&self.text.objc, "Menlo", None);
+
         self.text.set_text(concat!(
             include_str!("../../ascii-art.txt"),
             build_time_local!("%F %T %:z")
@@ -290,4 +293,57 @@ impl WindowDelegate for AboutWindow {
 
         self.window.set_content_view(&self.text);
     }
+}
+
+/// Set font as `name`.
+fn set_font(obj: &ObjcProperty, name: &str, size: Option<f64>) {
+    unsafe {
+        let cls = class!(NSFont);
+        let size: f64 = match size {
+            None => {
+                msg_send![cls, labelFontSize]
+            }
+            Some(x) => x,
+        };
+        let font_name: NSString = NSString::new(name);
+        let font: id = msg_send![cls, fontWithName:font_name size:size];
+        obj.with_mut(|obj| {
+            let _: () = msg_send![obj, setFont:font];
+        })
+    }
+}
+
+struct HelpWindow {
+    window: OnceAssign<Window>,
+
+    text: Label,
+}
+
+impl HelpWindow {
+    fn new() -> Self {
+        Self {
+            window: OnceAssign::new(),
+            text: Label::new(),
+        }
+    }
+}
+
+impl WindowDelegate for HelpWindow {
+    const NAME: &'static str = "CORHelpWindowDelegate";
+
+    fn did_load(&mut self, window: Window) {
+        self.window.set(window);
+        self.window.set_content_size(390, 600);
+        self.window.set_title("Help");
+        self.text.set_text(cli_parser::HELP_MSG);
+        set_font(&self.text.objc, "Menlo", Some(8.));
+        self.window.set_content_view(&self.text);
+    }
+}
+
+struct GameWindow {
+    window: OnceAssign<Window>,
+
+    start_btn: Button,
+    err_msg: Label,
 }
