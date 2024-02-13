@@ -13,7 +13,6 @@ use cacao::{
         window::{Window, WindowConfig, WindowDelegate, WindowStyle},
         App, AppDelegate,
     },
-    button::Button,
     events::EventModifierFlag,
     foundation::{id, nil, NSString},
     image::Image,
@@ -31,7 +30,7 @@ mod config;
 
 pub struct CorApp {
     // View-associated
-    game_window: Window,
+    game_window: Window<GameWindow>,
     about_window: Window<AboutWindow>,
     gui_config_window: Window<config::GraphicalConfigWindow>,
     text_config_window: Window<config::TextualConfigWindow>,
@@ -43,8 +42,6 @@ pub struct CorApp {
 
 impl AppDelegate for CorApp {
     fn did_finish_launching(&self) {
-        self.game_window.set_content_size(200, 150);
-        self.game_window.set_title("corCocoa");
         self.game_window.show();
         App::set_menu(Self::menu());
         // Self::change_app_menu_name("CoR");
@@ -65,7 +62,7 @@ impl AppDelegate for CorApp {
 impl CorApp {
     pub fn new() -> Self {
         Self {
-            game_window: Default::default(),
+            game_window: Window::with(fixed_size_window_config(), GameWindow::new()),
             about_window: Window::with(fixed_size_window_config(), AboutWindow::new()),
             gui_config_window: Window::with(
                 fixed_size_window_config(),
@@ -344,6 +341,27 @@ impl WindowDelegate for HelpWindow {
 struct GameWindow {
     window: OnceAssign<Window>,
 
-    start_btn: Button,
     err_msg: Label,
+}
+
+impl GameWindow {
+    fn new() -> Self {
+        Self {
+            window: OnceAssign::new(),
+            err_msg: Label::new(),
+        }
+    }
+}
+
+impl WindowDelegate for GameWindow {
+    const NAME: &'static str = "CORGameWindowDelegate";
+
+    fn did_load(&mut self, window: Window) {
+        self.window.set(window);
+        self.window.set_content_size(300, 150);
+        self.window.set_title("corCocoa");
+        self.err_msg
+            .set_text("Preference parsing error will be emitted here.");
+        self.window.set_content_view(&self.err_msg);
+    }
 }
