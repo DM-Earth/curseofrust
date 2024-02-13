@@ -175,7 +175,7 @@ impl From<std::net::AddrParseError> for Error {
 impl std::error::Error for Error {}
 
 /// The help message for the program.
-const HELP_MSG: &'static str = r#"
+pub const HELP_MSG: &'static str = r#"
                                 __
    ____                        /  ]  ________             __
   / __ \_ _ ___ ___ ___    __ _| |_  |  ___  \__  __ ___ _| |__
