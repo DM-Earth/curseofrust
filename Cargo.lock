@@ -257,6 +257,7 @@ dependencies = [
  "cacao",
  "curseofrust",
  "curseofrust-cli-parser",
+ "dispatch",
  "fastrand",
 ]
 

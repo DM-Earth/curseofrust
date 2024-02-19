@@ -98,6 +98,11 @@ pub fn parse(
         }
     }
 
+    // Fix a weird bug.
+    if basic_opts.shape == curseofrust::grid::Stencil::Rect {
+        basic_opts.width += 10;
+    }
+
     Ok((basic_opts, multiplayer_opts))
 }
 
