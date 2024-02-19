@@ -2,6 +2,7 @@
 name = "curseofrust-gui-cocoa"
 version = "0.1.0"
 edition = "2021"
+authors = ["C191239 <zhushunzhong2025@i.pkuschool.edu.cn>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
