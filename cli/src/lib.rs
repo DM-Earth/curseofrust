@@ -1,4 +1,4 @@
-use std::ffi::OsStr;
+use std::{cmp::max, ffi::OsStr};
 
 use curseofrust::state::{BasicOpts, MultiplayerOpts};
 
@@ -41,7 +41,8 @@ pub fn parse(
                 }
                 match flag {
                     'W' => basic_opts.width = parse!("-W", "integer")?,
-                    'H' => basic_opts.height = parse!("-H", "integer")?,
+                    // Minimium height.
+                    'H' => basic_opts.height = max(parse!("-H", "integer")?, 5),
                     'S' => basic_opts.shape = parse!("-S", "shape", Stencil)?.0,
                     'l' => basic_opts.locations = parse!("-l", "integer")?,
                     'i' => basic_opts.inequality = Some(parse!("-i", "integer")?),

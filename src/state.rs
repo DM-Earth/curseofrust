@@ -145,7 +145,10 @@ macro_rules! rnd_round {
 
 impl State {
     pub fn new(b_opt: BasicOpts) -> crate::Result<Self> {
-        let width = b_opt.width.min(MAX_WIDTH);
+        let width = b_opt.width.min(match b_opt.shape {
+            Stencil::Rect => MAX_WIDTH + 10,
+            _ => MAX_WIDTH,
+        });
         let height = b_opt.height.min(MAX_HEIGHT);
 
         const PLAYERS: usize = 7;

@@ -331,7 +331,7 @@ impl CorApp {
         let screen_size = CGSize::new(
             i16::max(
                 (self.ui.as_ref().unwrap().xlen + 2) as i16 * TILE_WIDTH,
-                75 * TYPE_WIDTH + 2 * TILE_WIDTH,
+                75 * TYPE_WIDTH + TILE_WIDTH,
             )
             .into(),
             ((self.state.as_ref().unwrap().grid.height() as u16 + 3) as i16 * TILE_HEIGHT
@@ -632,12 +632,14 @@ impl CorApp {
                             );
                             for p in 1..MAX_PLAYERS {
                                 draw_str(
-                                    &state
-                                        .grid
-                                        .tile(Pos(ui.cursor.0, ui.cursor.1))
-                                        .unwrap()
-                                        .units()[p]
-                                        .to_string(),
+                                    &format!(
+                                        "{:>3}",
+                                        state
+                                            .grid
+                                            .tile(Pos(ui.cursor.0, ui.cursor.1))
+                                            .unwrap()
+                                            .units()[p]
+                                    ),
                                     Player(p as u32),
                                     TILE_WIDTH + (23 + 4 * (p as i16 - 1)) * TYPE_WIDTH,
                                     base_y + 1 * TYPE_HEIGHT,
