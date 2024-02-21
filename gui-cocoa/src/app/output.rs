@@ -110,8 +110,8 @@ pub fn draw_tile_noise(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16, var: i1
     let rnd_x = var % 3 - 1;
     let rnd_y = var % 2;
     let dest_point = CGPoint::new(
-        ((dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) as i16 + rnd_x) as f64,
-        ((dest_j * TILE_HEIGHT) as i16 + rnd_y) as f64,
+        ((dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) + rnd_x) as f64,
+        ((dest_j * TILE_HEIGHT) + rnd_y) as f64,
     );
     let _: () = unsafe {
         msg_send![TILE.0, drawAtPoint:dest_point fromRect:tile_rect operation:NSCompositingOperationSourceOver fraction:(1. as CGFloat)]
@@ -155,7 +155,7 @@ pub fn pop_to_symbol(pop: u16) -> i16 {
         1..=3 => 0,
         4..=6 => 1,
         7..=12 => 2,
-        11..=25 => 3,
+        13..=25 => 3,
         26..=50 => 4,
         51..=100 => 5,
         101..=200 => 6,

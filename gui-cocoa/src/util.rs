@@ -10,7 +10,7 @@ pub fn app_from_objc<T>() -> &'static mut T {
     unsafe {
         let objc_app: id = msg_send![class!(RSTApplication), sharedApplication];
         let objc_delegate: id = msg_send![objc_app, delegate];
-        let rs_delegate_ptr: usize = *(&mut *objc_delegate).get_ivar("rstAppPtr");
+        let rs_delegate_ptr: usize = *(*objc_delegate).get_ivar("rstAppPtr");
         &mut *(rs_delegate_ptr as *mut T)
     }
 }

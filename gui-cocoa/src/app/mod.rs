@@ -367,7 +367,7 @@ impl CorApp {
             .as_ref()
             .unwrap()
             .game_view
-            .set_image(&self.screen.as_ref().unwrap());
+            .set_image(self.screen.as_ref().unwrap());
         let mut prev_time = Instant::now();
         let mut k: u16 = 0;
         while !self.terminate {
@@ -401,8 +401,8 @@ impl CorApp {
                                     // Draw cliffs.
                                     let cliff = is_cliff(i, j, &state.grid);
                                     if cliff.contains(&true) {
-                                        for idx in 0..4 {
-                                            if cliff[idx] {
+                                        for (idx, bl) in cliff.iter().enumerate() {
+                                            if *bl {
                                                 draw_tile(
                                                     7 + idx as i16,
                                                     0,
@@ -642,7 +642,7 @@ impl CorApp {
                                     ),
                                     Player(p as u32),
                                     TILE_WIDTH + (23 + 4 * (p as i16 - 1)) * TYPE_WIDTH,
-                                    base_y + 1 * TYPE_HEIGHT,
+                                    base_y + TYPE_HEIGHT,
                                 );
                             }
                             draw_str(
@@ -718,7 +718,7 @@ impl CorApp {
             .get_value()
             .trim()
             .to_owned();
-        if config_str.starts_with("-") {
+        if config_str.starts_with('-') {
             // Add fake bin name.
             config_str = "curseofrust ".to_owned() + &config_str;
         }
