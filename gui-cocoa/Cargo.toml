@@ -3,6 +3,7 @@ name = "curseofrust-gui-cocoa"
 version = "0.1.0"
 edition = "2021"
 authors = ["C191239 <zhushunzhong2025@i.pkuschool.edu.cn>"]
+description = "A real-time strategy game named \"Curse of War\" ported to rust."
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,3 +16,11 @@ cli-parser = { path = "../cli", package = "curseofrust-cli-parser" }
 [target.'cfg(target_os = "macos")'.dependencies]
 cacao = "0.3.2"
 dispatch = "0.2.0"
+
+[package.metadata.bundle]
+name = "Curse of Rust"
+identifier = "com.dm.earth.curseofrust"
+version = "0.1.0"
+copyright = "Copyright (c) 2024 C191239. Licensed under GNU Affero Public License Version 3."
+category = "public.app-category.strategy-games"
+icon = ["./images/icon.gif"]

@@ -76,7 +76,7 @@ impl AppDelegate for CorApp {
         App::set_menu(Self::menu());
         // Self::change_app_menu_name("CoR");
         App::activate();
-        Self::set_app_icon();
+        // Self::set_app_icon();
     }
 
     fn should_handle_reopen(&self, has_visible_windows: bool) -> bool {
@@ -263,7 +263,7 @@ impl CorApp {
 
     /// Icon is hard-coded, so call this only once.\
     /// Just modify this fn if you want to change icon.
-    fn set_app_icon() {
+    fn _set_app_icon() {
         static ONCE: Once = Once::new();
         ONCE.call_once(|| {
             let image: Image = Image::with_data(include_bytes!("../../images/icon.gif"));
