@@ -1,8 +1,11 @@
-#![cfg(target_os = "macos")]
-
+#[cfg(target_os = "macos")]
 mod app;
+#[cfg(target_os = "macos")]
 mod util;
 
 fn main() {
-    cacao::appkit::App::new("com.dm.earth.curseofrust", app::CorApp::new()).run();
+    #[cfg(target_os = "macos")]
+    return cacao::appkit::App::new("com.dm.earth.curseofrust", app::CorApp::new()).run();
+
+    unreachable!("unsupported platform")
 }
