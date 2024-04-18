@@ -21,7 +21,7 @@ fn main() -> Result<(), DirectBoxedError> {
             .unwrap_or_default()
             .as_secs(),
     );
-    let (b_opt, m_opt) = curseofrust_cli_parser::parse(std::env::args_os())?;
+    let (b_opt, _m_opt) = curseofrust_cli_parser::parse(std::env::args_os())?;
     let state = curseofrust::state::State::new(b_opt)?;
     let stdout = std::io::stdout();
     let mut st = State {
@@ -100,20 +100,20 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
 
         st.out.flush()?;
 
-        if futures_lite::future::block_on(futures_lite::future::zip(
+        let (cond, _) = futures_lite::future::block_on(futures_lite::future::zip(
             async {
-                if let Ok(Some(event)) = futures_lite::future::or(events.try_next(), async {
+                let cond = futures_lite::future::or(events.try_next(), async {
                     async_io::Timer::after(DURATION).await;
                     Ok(None)
                 })
-                .await
-                {
+                .await;
+                if let Ok(Some(event)) = cond {
                     match event {
                         crossterm::event::Event::Key(KeyEvent {
                             code,
-                            modifiers,
+                            modifiers: _,
                             kind,
-                            state,
+                            state: _,
                         }) => {
                             let cursor = st.ui.cursor;
                             if !matches!(kind, crossterm::event::KeyEventKind::Release) {
@@ -190,9 +190,9 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                 Result::<_, std::io::Error>::Ok(false)
             },
             async_io::Timer::after(DURATION),
-        ))
-        .0?
-        {
+        ));
+
+        if cond? {
             break;
         }
     }

@@ -11,12 +11,12 @@ use curseofrust::{Player, Pos};
 
 use crate::State;
 
-const GRASS: &'static str = " - ";
-const MOUNTAIN: &'static str = "/\\^";
-const MINE: &'static str = "/$\\";
-const VILLAGE: &'static str = " n ";
-const TOWN: &'static str = "i=i";
-const FORTRESS: &'static str = "W#W";
+const GRASS: &str = " - ";
+const MOUNTAIN: &str = "/\\^";
+const MINE: &str = "/$\\";
+const VILLAGE: &str = " n ";
+const TOWN: &str = "i=i";
+const FORTRESS: &str = "W#W";
 
 fn player_style(player: Player) -> ContentStyle {
     ContentStyle {
@@ -193,7 +193,7 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
     )?;
 
     if let Some(tile) = st.s.grid.tile(st.ui.cursor) {
-        for (p, pop) in tile.units().into_iter().enumerate() {
+        for (p, pop) in tile.units().iter().enumerate() {
             queue!(
                 st.out,
                 style::Print("  "),
