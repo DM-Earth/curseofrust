@@ -9,7 +9,7 @@ use crossterm::{
     event::{KeyCode, KeyEvent},
     execute, queue, terminal,
 };
-use curseofrust::{Speed, FLAG_POWER};
+use curseofrust::{grid::Tile, Speed, FLAG_POWER};
 use futures_lite::StreamExt;
 
 mod output;
@@ -117,12 +117,15 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                         }) => {
                             let cursor = st.ui.cursor;
                             if !matches!(kind, crossterm::event::KeyEventKind::Release) {
+                                let cursor_x_shift = if st.ui.cursor.1 % 2 == 0 { 0 } else { 1 };
                                 match code {
                                     KeyCode::Up | KeyCode::Char('k') => {
                                         st.ui.cursor.1 -= 1;
+                                        st.ui.cursor.0 += cursor_x_shift;
                                     }
                                     KeyCode::Down | KeyCode::Char('j') => {
                                         st.ui.cursor.1 += 1;
+                                        st.ui.cursor.0 += cursor_x_shift - 1;
                                     }
                                     KeyCode::Left | KeyCode::Char('h') => {
                                         st.ui.cursor.0 -= 1;
@@ -175,7 +178,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                                     _ => (),
                                 }
                             }
-                            if !st.s.grid.tile(st.ui.cursor).is_some_and(|t| t.is_visible()) {
+                            if !st.s.grid.tile(st.ui.cursor).is_some_and(Tile::is_visible) {
                                 st.ui.cursor = cursor;
                             }
                         }
