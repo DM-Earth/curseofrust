@@ -1,0 +1,9 @@
+[package]
+name = "curseofrust-msg"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+curseofrust = { path = "../" }
+bytes = "1.6"
+bytemuck = "1.15"
