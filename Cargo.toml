@@ -14,3 +14,4 @@ members = ["gui-cocoa", "console", "cli"]
 
 [profile.release]
 panic = "abort"
+lto = "fat"

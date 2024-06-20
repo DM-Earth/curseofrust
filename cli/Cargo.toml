@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 curseofrust = { path = ".." }
 clap_lex = "0.6"
+
+[profile.release]
+lto = "fat"
+panic = "abort"

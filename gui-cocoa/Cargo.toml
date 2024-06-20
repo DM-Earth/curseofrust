@@ -24,3 +24,7 @@ version = "0.1.0"
 copyright = "Copyright (c) 2024 C191239. Licensed under GNU Affero Public License Version 3."
 category = "public.app-category.strategy-games"
 icon = ["./images/icon.gif"]
+
+[profile.release]
+lto = "fat"
+panic = "abort"
