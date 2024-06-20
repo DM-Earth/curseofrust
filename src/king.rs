@@ -28,7 +28,7 @@ impl Grid {
     /// Builds a village, upgrades a village to a town,
     /// or upgrades a town to a fortress.
     ///
-    /// Returns whether the build was successed.
+    /// Returns whether the build was succeed.
     pub fn build(&mut self, country: &mut Country, pos: Pos) -> crate::Result<()> {
         let Tile::Habitable { land, .. } = self
             .tile_mut(pos)
@@ -150,11 +150,11 @@ impl Strategy {
 impl King {
     /// Creates a new king.
     #[inline]
-    pub fn new(player: Player, strat: Strategy, width: u32, height: u32) -> Self {
+    pub fn new(player: Player, strategy: Strategy, width: u32, height: u32) -> Self {
         Self {
             values: vec![vec![0; height as usize]; width as usize],
             player,
-            strategy: strat,
+            strategy,
         }
     }
 
@@ -295,7 +295,6 @@ impl King {
             Strategy::OneGreedy => action!(action_one_greedy),
             Strategy::PersistentGreedy => action!(action_persistent_greedy),
             Strategy::Opportunist => action!(action_opportunist),
-            //TODO: fix noble
             Strategy::Noble => action!(action_noble),
             Strategy::None | Strategy::Midas => (),
         }
@@ -422,6 +421,7 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
             }
         }
 
+        #[inline(always)]
         fn insert(&mut self, lx: Pos, vx: i32) {
             let i = self
                 .vals
