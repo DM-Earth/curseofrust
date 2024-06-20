@@ -80,7 +80,7 @@ struct State<W> {
 fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
     const DURATION: Duration = Duration::from_millis(10);
 
-    let mut time = 0;
+    let mut time = 0i32;
     let mut events = crossterm::event::EventStream::new();
     loop {
         time += 1;
@@ -88,7 +88,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
             time = 0
         }
 
-        if time % slowdown(st.s.speed) == 0 {
+        if time.checked_rem(slowdown(st.s.speed)) == Some(0) {
             st.s.kings_move();
             st.s.simulate();
             if st.s.show_timeline && st.s.time % 10 == 0 {
@@ -205,7 +205,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
 #[inline]
 fn slowdown(speed: Speed) -> i32 {
     match speed {
-        Speed::Pause => i32::MAX,
+        Speed::Pause => 0,
         Speed::Slowest => 160,
         Speed::Slower => 80,
         Speed::Slow => 40,

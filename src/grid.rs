@@ -45,9 +45,7 @@ impl Grid {
     /// Creates a new grid with given width and height.
     /// Tiles are generated randomly, including mountains,
     /// mines and cities.
-    ///
-    /// See [`Tile::new`].
-    pub fn new(width: u32, height: u32) -> Self {
+    pub(crate) fn new(width: u32, height: u32) -> Self {
         let width = width.min(MAX_WIDTH);
         let height = height.min(MAX_HEIGHT);
 
