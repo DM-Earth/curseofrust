@@ -3,14 +3,14 @@ use cacao::{
         window::{Window, WindowDelegate},
         FocusRingType,
     },
-    color::Color,
     foundation::NSUInteger,
     input::TextField,
-    layout::{Layout, LayoutConstraint},
-    listview::{ListView, ListViewDelegate, ListViewRow},
+    listview::ListView,
     objc::{msg_send, sel, sel_impl},
-    text::Label,
 };
+
+#[cfg(not(feature = "high-sierra"))]
+use {crate::app::set_font, cacao::text::Label};
 
 use crate::util::{app_from_objc, OnceAssign};
 
@@ -23,14 +23,20 @@ pub const ACTIVATE: &str = "activate gui config window c191239 5444";
 pub struct GraphicalConfigWindow {
     window: OnceAssign<Window>,
 
-    pub list: ListView<ConfigList>,
+    #[cfg(feature = "high-sierra")]
+    pub list: ListView<list::ConfigList>,
+    #[cfg(not(feature = "high-sierra"))]
+    pub msg: Label<()>,
 }
 
 impl GraphicalConfigWindow {
     pub fn new() -> Self {
         Self {
             window: OnceAssign::new(),
-            list: ListView::with(ConfigList::new()),
+            #[cfg(feature = "high-sierra")]
+            list: ListView::with(list::ConfigList::new()),
+            #[cfg(not(feature = "high-sierra"))]
+            msg: Label::new(),
         }
     }
 }
@@ -42,54 +48,76 @@ impl WindowDelegate for GraphicalConfigWindow {
         self.window.set(window);
         self.window.set_content_size(300, 200);
         self.window.set_title("GUI Preferences");
-        self.window.set_content_view(&self.list);
-    }
-}
-
-/// List containing config items in the graphical config window.\
-/// Unfinished, but i will be back. **(2024-02-06 C191239)**
-pub struct ConfigList {
-    list: OnceAssign<ListView>,
-}
-
-impl ConfigList {
-    fn new() -> Self {
-        Self {
-            list: OnceAssign::new(),
+        #[cfg(feature = "high-sierra")]
+        {
+            self.window.set_content_view(&self.list);
+        }
+        #[cfg(not(feature = "high-sierra"))]
+        {
+            self.msg
+                .set_text("\n +---------------+\n | Not supported |\n +---------------+");
+            set_font(&self.msg, "Menlo", Some(24.));
+            self.window.set_content_view(&self.msg);
         }
     }
 }
 
-impl ListViewDelegate for ConfigList {
-    const NAME: &'static str = "CORConfigListViewDelegate";
+#[cfg(feature = "high-sierra")]
+mod list {
+    use cacao::{
+        color::Color,
+        layout::{Layout, LayoutConstraint},
+        listview::{ListView, ListViewDelegate, ListViewRow},
+        text::Label,
+    };
 
-    fn did_load(&mut self, view: ListView) {
-        self.list.set(view);
+    use crate::util::OnceAssign;
+
+    /// List containing config items in the graphical config window.\
+    /// Unfinished, but i will be back. **(2024-02-06 C191239)**
+    pub struct ConfigList {
+        list: OnceAssign<ListView>,
     }
 
-    fn number_of_items(&self) -> usize {
-        3
+    impl ConfigList {
+        pub fn new() -> Self {
+            Self {
+                list: OnceAssign::new(),
+            }
+        }
     }
 
-    fn item_for(&self, row: usize) -> ListViewRow {
-        let msg = match row {
-            0 => ("Not", Color::SystemRed),
-            1 => ("Implmented", Color::SystemGreen),
-            2 => ("Yet", Color::SystemBlue),
-            _ => unreachable!(),
-        };
-        let label = Label::new();
-        label.set_text(msg.0);
-        label.set_background_color(msg.1);
-        label.set_text_alignment(cacao::text::TextAlign::Center);
-        let row = ListViewRow::new();
-        row.add_subview(&label);
-        LayoutConstraint::activate(&[
-            label.center_x.constraint_equal_to(&row.center_x),
-            label.center_y.constraint_equal_to(&row.center_y),
-        ]);
-        row.set_identifier(msg.0);
-        row
+    impl ListViewDelegate for ConfigList {
+        const NAME: &'static str = "CORConfigListViewDelegate";
+
+        fn did_load(&mut self, view: ListView) {
+            self.list.set(view);
+        }
+
+        fn number_of_items(&self) -> usize {
+            3
+        }
+
+        fn item_for(&self, row: usize) -> ListViewRow {
+            let msg = match row {
+                0 => ("Not", Color::SystemRed),
+                1 => ("Implmented", Color::SystemGreen),
+                2 => ("Yet", Color::SystemBlue),
+                _ => unreachable!(),
+            };
+            let label = Label::new();
+            label.set_text(msg.0);
+            label.set_background_color(msg.1);
+            label.set_text_alignment(cacao::text::TextAlign::Center);
+            let row = ListViewRow::new();
+            row.add_subview(&label);
+            LayoutConstraint::activate(&[
+                label.center_x.constraint_equal_to(&row.center_x),
+                label.center_y.constraint_equal_to(&row.center_y),
+            ]);
+            row.set_identifier(msg.0);
+            row
+        }
     }
 }
 

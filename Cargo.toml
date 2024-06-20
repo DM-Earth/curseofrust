@@ -13,4 +13,5 @@ resolver = "2"
 members = ["gui-cocoa", "console", "cli", "msg"]
 
 [profile.release]
+panic = "abort"
 lto = "fat"
