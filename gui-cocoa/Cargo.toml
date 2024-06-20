@@ -25,6 +25,6 @@ copyright = "Copyright (c) 2024 C191239. Licensed under GNU Affero Public Licens
 category = "public.app-category.strategy-games"
 icon = ["./images/icon.gif"]
 
-[profile.release]
-lto = "fat"
-panic = "abort"
+[features]
+default = ["high-sierra"]
+high-sierra = []
