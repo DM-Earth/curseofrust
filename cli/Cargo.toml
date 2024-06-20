@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 curseofrust = { path = ".." }
-clap_lex = "0.6"
+clap_lex = "0.7.1"
