@@ -23,6 +23,7 @@ pub struct ConflictDescriptor<'a> {
     pub locs: &'a [Pos],
 
     /// Number of starting locations.
+    ///
     /// Can be 2, 3, or 4.
     pub locs_num: usize,
 
@@ -31,9 +32,11 @@ pub struct ConflictDescriptor<'a> {
     pub ui_players: &'a [Player],
 
     /// 1, ... number of available locations.
+    ///
     /// 1 is the best.
     pub conditions: Option<u32>,
     /// Inequality from 0 to 4.
+    ///
     /// `None` leaves for a randomly generated value.
     pub ineq: Option<u32>,
 }
@@ -477,6 +480,15 @@ impl Tile {
             &EMPTY
         }
     }
+
+    #[inline]
+    pub fn units_mut(&mut self) -> Option<&mut [u16; MAX_PLAYERS]> {
+        if let Self::Habitable { units, .. } = self {
+            Some(units)
+        } else {
+            None
+        }
+    }
 }
 
 impl Default for Tile {
@@ -684,18 +696,18 @@ impl Stencil {
 /// Each player has his own flag grid.
 #[derive(Debug, Clone)]
 pub struct FlagGrid {
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
 
     /// Whether a position has a flag.
-    flags: Vec<Vec<bool>>,
+    pub flags: Vec<Vec<bool>>,
 
     /// Information of power of attraction
     /// a position has.
     ///
     /// Must be updated when flags are added
     /// or removed.
-    call: Vec<Vec<i32>>,
+    pub call: Vec<Vec<i32>>,
 }
 
 impl FlagGrid {

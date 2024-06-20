@@ -77,6 +77,12 @@ pub enum Error {
         /// Gold player already has.
         owning: u64,
     },
+
+    /// The given player is invalid.
+    PlayerNotFound(Player),
+    DeprecatedMsg {
+        time: u32,
+    },
 }
 
 impl Display for Error {
@@ -104,6 +110,10 @@ impl Display for Error {
                 f,
                 "gold not enough: required {required}, player owns {owning}"
             ),
+            Error::PlayerNotFound(Player(pl)) => write!(f, "player {} not found", pl),
+            Error::DeprecatedMsg { time } => {
+                write!(f, "the time {} is ealier than the local time", time)
+            }
         }
     }
 }

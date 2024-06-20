@@ -185,7 +185,7 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
 
     queue!(
         st.out,
-        cursor::MoveTo(0, st.s.grid.height() as u16),
+        cursor::MoveTo(0, st.s.grid.height() as u16 + 1),
         terminal::Clear(ClearType::CurrentLine),
         style::PrintStyledContent(StyledContent::new(
             ContentStyle {
