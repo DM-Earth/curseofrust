@@ -403,6 +403,7 @@ fn action_opportunist(king: &King, grid: &Grid, fg: &mut FlagGrid) {
     }
 }
 
+/*
 fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
     const MAX_PRIORITY: usize = 32;
 
@@ -488,3 +489,4 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
         .map(|(p, _)| p)
         .for_each(|p| fg.add(grid, p, FLAG_POWER));
 }
+*/
