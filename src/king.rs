@@ -296,8 +296,8 @@ impl King {
             Strategy::PersistentGreedy => action!(action_persistent_greedy),
             Strategy::Opportunist => action!(action_opportunist),
             //TODO: fix noble
-            Strategy::Noble => action!(action_opportunist),
-            _ => (),
+            Strategy::Noble => action!(action_noble),
+            Strategy::None | Strategy::Midas => (),
         }
     }
 
@@ -403,7 +403,6 @@ fn action_opportunist(king: &King, grid: &Grid, fg: &mut FlagGrid) {
     }
 }
 
-/*
 fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
     const MAX_PRIORITY: usize = 32;
 
@@ -428,8 +427,11 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
                 .vals
                 .into_iter()
                 .position(|val| val < vx)
-                .unwrap_or(N.min(MAX_PRIORITY));
-            if i < MAX_PRIORITY {
+                .unwrap_or(N.min(MAX_PRIORITY))
+                .checked_sub(1)
+                .unwrap_or_default();
+
+            if i < MAX_PRIORITY && i < N - 1 {
                 let mut locs = self.locs;
                 let mut vals = self.vals;
 
@@ -467,12 +469,15 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
         for (j, (tile, val)) in arr_g.iter().zip(arr_k.iter().copied()).enumerate() {
             if let Tile::Habitable { units, .. } = tile {
                 let pos = Pos(i as i32, j as i32);
+                if fg.is_flagged(pos) {
+                    fg.remove(grid, pos, FLAG_POWER)
+                }
 
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
-                let v = (val * (MAX_POPULATION as i32 - enemy as i32 + army as i32)) as f32
-                    * (army as f32).powf(0.5);
+                let enemy = units.iter().sum::<u16>() - army;
+                let v = (val * (MAX_POPULATION as i32 - (enemy as i32 - army as i32))) as f32
+                    * (army as f32).sqrt();
 
                 if enemy > army && v > 7000.0 {
                     pos_val.insert(pos, v as i32)
@@ -489,4 +494,3 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
         .map(|(p, _)| p)
         .for_each(|p| fg.add(grid, p, FLAG_POWER));
 }
-*/

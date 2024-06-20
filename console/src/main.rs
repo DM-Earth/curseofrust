@@ -21,6 +21,7 @@ fn main() -> Result<(), DirectBoxedError> {
             .unwrap_or_default()
             .as_secs(),
     );
+
     let (b_opt, _m_opt) = curseofrust_cli_parser::parse(std::env::args_os())?;
     let state = curseofrust::state::State::new(b_opt)?;
     let stdout = std::io::stdout();
