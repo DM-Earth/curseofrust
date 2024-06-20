@@ -961,6 +961,8 @@ impl GameWindow {
         match main {
             YES => self.window.set_title("corCocoa"),
             NO => sync_main_thread(|| app_from_objc::<CorApp>().game_window.set_title("corCocoa")),
+            #[cfg(not(target_arch = "aarch64"))]
+            _ => unreachable!(),
         };
 
         self.err_msg.set_text_color(Color::Label);
@@ -973,6 +975,8 @@ impl GameWindow {
                 app.game_window
                     .set_content_view(&app.game_window.delegate.as_ref().unwrap().err_msg);
             }),
+            #[cfg(not(target_arch = "aarch64"))]
+            _ => unreachable!(),
         };
         if resize {
             resize_window(&self.window, 200, 150);

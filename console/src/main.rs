@@ -9,7 +9,7 @@ use crossterm::{
     event::{KeyCode, KeyEvent},
     execute, queue, terminal,
 };
-use curseofrust::{Speed, FLAG_POWER};
+use curseofrust::{grid::Tile, Speed, FLAG_POWER};
 use futures_lite::StreamExt;
 
 mod output;
@@ -21,7 +21,7 @@ fn main() -> Result<(), DirectBoxedError> {
             .unwrap_or_default()
             .as_secs(),
     );
-    let (b_opt, m_opt) = curseofrust_cli_parser::parse(std::env::args_os())?;
+    let (b_opt, _m_opt) = curseofrust_cli_parser::parse(std::env::args_os())?;
     let state = curseofrust::state::State::new(b_opt)?;
     let stdout = std::io::stdout();
     let mut st = State {
@@ -100,29 +100,32 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
 
         st.out.flush()?;
 
-        if futures_lite::future::block_on(futures_lite::future::zip(
+        let (cond, _) = futures_lite::future::block_on(futures_lite::future::zip(
             async {
-                if let Ok(Some(event)) = futures_lite::future::or(events.try_next(), async {
+                let cond = futures_lite::future::or(events.try_next(), async {
                     async_io::Timer::after(DURATION).await;
                     Ok(None)
                 })
-                .await
-                {
+                .await;
+                if let Ok(Some(event)) = cond {
                     match event {
                         crossterm::event::Event::Key(KeyEvent {
                             code,
-                            modifiers,
+                            modifiers: _,
                             kind,
-                            state,
+                            state: _,
                         }) => {
                             let cursor = st.ui.cursor;
                             if !matches!(kind, crossterm::event::KeyEventKind::Release) {
+                                let cursor_x_shift = if st.ui.cursor.1 % 2 == 0 { 0 } else { 1 };
                                 match code {
                                     KeyCode::Up | KeyCode::Char('k') => {
                                         st.ui.cursor.1 -= 1;
+                                        st.ui.cursor.0 += cursor_x_shift;
                                     }
                                     KeyCode::Down | KeyCode::Char('j') => {
                                         st.ui.cursor.1 += 1;
+                                        st.ui.cursor.0 += cursor_x_shift - 1;
                                     }
                                     KeyCode::Left | KeyCode::Char('h') => {
                                         st.ui.cursor.0 -= 1;
@@ -175,7 +178,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                                     _ => (),
                                 }
                             }
-                            if !st.s.grid.tile(st.ui.cursor).is_some_and(|t| t.is_visible()) {
+                            if !st.s.grid.tile(st.ui.cursor).is_some_and(Tile::is_visible) {
                                 st.ui.cursor = cursor;
                             }
                         }
@@ -190,9 +193,9 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                 Result::<_, std::io::Error>::Ok(false)
             },
             async_io::Timer::after(DURATION),
-        ))
-        .0?
-        {
+        ));
+
+        if cond? {
             break;
         }
     }

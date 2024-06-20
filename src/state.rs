@@ -1,7 +1,4 @@
-use std::{
-    default,
-    net::{IpAddr, SocketAddr},
-};
+use std::net::SocketAddr;
 
 use crate::{
     grid::{HabitLand, Stencil, Tile, MAX_AVLBL_LOCS},
@@ -331,11 +328,10 @@ impl State {
                     // Burning cities
                     if defender_dmg as f32 > 2.0 * MAX_POPULATION as f32 * ATTACK
                         && land != HabitLand::Grassland
+                        && fastrand::bool()
                     {
-                        if fastrand::bool() {
-                            need_to_reeval = true;
-                            let _ = self.grid.degrade(Pos(i as i32, j as i32));
-                        }
+                        need_to_reeval = true;
+                        let _ = self.grid.degrade(Pos(i as i32, j as i32));
                     }
 
                     let Tile::Habitable {

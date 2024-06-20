@@ -28,8 +28,8 @@ const TYPE_FIRST: u8 = 33;
 const LINE_LENGTH: i16 = 32;
 const COLOR_OFFSET: i16 = 3;
 
-#[allow(non_upper_case_globals)]
 /// Copied from `icrate`.
+#[allow(non_upper_case_globals)]
 const NSCompositingOperationSourceOver: NSUInteger = 2;
 
 /// Magic, but it works fine.
@@ -37,6 +37,7 @@ const NSCompositingOperationSourceOver: NSUInteger = 2;
 pub fn pos_x(ui: &state::UI, i: i16) -> i16 {
     i - ui.xskip as i16
 }
+
 #[inline]
 pub fn pos_y(j: i16) -> i16 {
     j + 1

@@ -11,12 +11,12 @@ use curseofrust::{Player, Pos};
 
 use crate::State;
 
-const GRASS: &'static str = " - ";
-const MOUNTAIN: &'static str = "/\\^";
-const MINE: &'static str = "/$\\";
-const VILLAGE: &'static str = " n ";
-const TOWN: &'static str = "i=i";
-const FORTRESS: &'static str = "W#W";
+const GRASS: &str = " - ";
+const MOUNTAIN: &str = "/\\^";
+const MINE: &str = "/$\\";
+const VILLAGE: &str = " n ";
+const TOWN: &str = "i=i";
+const FORTRESS: &str = "W#W";
 
 fn player_style(player: Player) -> ContentStyle {
     ContentStyle {
@@ -62,13 +62,20 @@ fn pop_to_symbol(pop: u16) -> &'static str {
 }
 
 pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Error> {
-    queue!(st.out, cursor::MoveTo(0, 0))?;
     for y in 0..st.s.grid.height() {
+        queue!(st.out, cursor::MoveTo(1, y as u16 + 1))?;
         if y % 2 == 0 {
             queue!(st.out, style::Print("  "))?;
         }
 
         for x in 0..st.s.grid.width() {
+            queue!(
+                st.out,
+                cursor::MoveTo(
+                    ((x * 4 + y * 2 + 1) as i16 - st.ui.xskip as i16 * 4).max(0) as u16,
+                    y as u16 + 1
+                )
+            )?;
             let pos = Pos(x as i32, y as i32);
             let Some(tile) = st.s.grid.tile(pos) else {
                 break;
@@ -97,7 +104,7 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
             match tile {
                 curseofrust::grid::Tile::Void => {
                     cursor!();
-                    queue!(st.out, style::Print("    "))?;
+                    queue!(st.out, style::Print("   "))?;
                 }
                 curseofrust::grid::Tile::Mountain => {
                     cursor!();
@@ -174,12 +181,11 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
                 }
             }
         }
-
-        queue!(st.out, style::Print("\n\r"))?;
     }
 
     queue!(
         st.out,
+        cursor::MoveTo(0, st.s.grid.height() as u16),
         terminal::Clear(ClearType::CurrentLine),
         style::PrintStyledContent(StyledContent::new(
             ContentStyle {
@@ -193,7 +199,7 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
     )?;
 
     if let Some(tile) = st.s.grid.tile(st.ui.cursor) {
-        for (p, pop) in tile.units().into_iter().enumerate() {
+        for (p, pop) in tile.units().iter().enumerate() {
             queue!(
                 st.out,
                 style::Print("  "),

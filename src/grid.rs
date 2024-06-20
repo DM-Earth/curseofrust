@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut};
+use std::ops::IndexMut;
 
 use crate::*;
 
@@ -426,7 +426,7 @@ impl Tile {
                     owner: Default::default(),
                 }
             }
-            ..=4 => {
+            1..=4 => {
                 // Mountains and mineis
                 this = if fastrand::u32(..10) == 0 {
                     Tile::Mine(Default::default())
@@ -786,8 +786,8 @@ impl FlagGrid {
 impl Grid {
     pub fn spread(
         &self,
-        u: &mut [impl IndexMut<usize> + Index<usize, Output = i32>],
-        v: &mut [impl IndexMut<usize> + Index<usize, Output = i32>],
+        u: &mut [impl IndexMut<usize, Output = i32>],
+        v: &mut [impl IndexMut<usize, Output = i32>],
         Pos(x, y): Pos,
         val: i32,
         factor: i32,
@@ -810,12 +810,7 @@ impl Grid {
         }
     }
 
-    pub fn even(
-        &self,
-        v: &mut [impl IndexMut<usize> + Index<usize, Output = i32>],
-        Pos(x, y): Pos,
-        val: i32,
-    ) {
+    pub fn even(&self, v: &mut [impl IndexMut<usize, Output = i32>], Pos(x, y): Pos, val: i32) {
         if x < 0
             || x >= self.width as i32
             || y < 0

@@ -90,6 +90,7 @@ pub struct King {
 
 /// Greedy strategy for a [`King`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum Strategy {
     #[default]
     None,
@@ -137,6 +138,7 @@ impl Strategy {
     }
 
     #[inline]
+    #[allow(clippy::single_match)]
     fn process_base(self, val: impl FnOnce() -> i32, base: &mut f32) {
         match self {
             Self::Midas => *base *= (val() + 10) as f32,
