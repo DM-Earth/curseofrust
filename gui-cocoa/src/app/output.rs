@@ -12,11 +12,11 @@ use curseofrust::{state, Grid, Player, Pos};
 
 lazy_static! {
     /// Contains all possible characters of all colors.
-    static ref TYPE:Image = Image::with_data(include_bytes!("../../images/type.gif"));
+    static ref TYPE: Image = Image::with_data(include_bytes!("../../images/type.gif"));
     /// The line between two text sections.
-    static ref UI:Image=Image::with_data(include_bytes!("../../images/ui.gif"));
+    static ref UI: Image = Image::with_data(include_bytes!("../../images/ui.gif"));
     /// Main game resources.
-    static ref TILE:Image=Image::with_data(include_bytes!("../../images/tileset.gif"));
+    static ref TILE: Image = Image::with_data(include_bytes!("../../images/tileset.gif"));
 }
 
 pub const TILE_WIDTH: i16 = 32;
