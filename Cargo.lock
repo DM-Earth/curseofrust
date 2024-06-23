@@ -281,6 +281,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "curseofrust-server"
+version = "0.1.0"
+dependencies = [
+ "async-io",
+ "curseofrust",
+ "curseofrust-cli-parser",
+ "curseofrust-msg",
+ "fastrand",
+ "futures-lite",
+]
+
+[[package]]
 name = "dispatch"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

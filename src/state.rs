@@ -54,7 +54,7 @@ impl Timeline {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct BasicOpts {
     pub keep_random: bool,
     pub difficulty: Difficulty,

@@ -27,6 +27,8 @@ pub struct C2SData {
     pub msg: u8,
 }
 
+pub const C2S_SIZE: usize = std::mem::size_of::<C2SData>() + 1;
+
 #[repr(C)]
 #[allow(dead_code)]
 struct UnsafeC2SData {
