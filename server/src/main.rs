@@ -1,7 +1,9 @@
 use std::{
+    cell::RefCell,
     fmt::Debug,
+    marker::PhantomData,
     net::{IpAddr, UdpSocket},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 use async_executor::LocalExecutor;
@@ -13,6 +15,18 @@ use curseofrust::{
 use curseofrust_msg::{bytemuck, ClientRecord, S2CData, C2S_SIZE, S2C_SIZE};
 
 const DEFAULT_NAME: &str = include_str!("../jim.txt");
+const DURATION: Duration = Duration::from_millis(10);
+
+struct TaskDetacher<T>(PhantomData<T>);
+
+impl<T> Extend<async_executor::Task<T>> for TaskDetacher<T> {
+    #[inline(always)]
+    fn extend<I: IntoIterator<Item = async_executor::Task<T>>>(&mut self, iter: I) {
+        for task in iter {
+            task.detach();
+        }
+    }
+}
 
 fn main() -> Result<(), DirectBoxedError> {
     fastrand::seed(
@@ -63,45 +77,50 @@ fn main() -> Result<(), DirectBoxedError> {
         }
     }
 
-    let mut st = State::new(b_opt)?;
+    let st = RefCell::new(State::new(b_opt)?);
     let socket = Async::new(UdpSocket::bind(addr)?)?;
     let mut time = 0i32;
     let executor = LocalExecutor::new();
-    let mut s2c_tasks = Vec::with_capacity(cl.len());
+
     futures_lite::future::block_on(executor.run(async {
         loop {
+            let timer = async_io::Timer::after(DURATION);
             time += 1;
             if time >= 1600 {
                 time = 0
             }
 
-            if time.checked_rem(slowdown(st.speed)) == Some(0) && st.speed != Speed::Pause {
-                st.kings_move();
-                st.simulate();
-                let data = S2CData::new(Default::default(), &st);
-                s2c_tasks.drain(..).for_each(async_executor::Task::detach);
-                executor.spawn_many(
-                    cl.iter().map(|client| {
-                        let mut data = data;
-                        data.set_player(client.player);
-                        let mut buf = [0u8; S2C_SIZE];
-                        buf[0] = curseofrust_msg::server_msg::STATE;
-                        buf[1..].copy_from_slice(bytemuck::bytes_of(&data));
-                        let socket = &socket;
-                        async move {
-                            let result = socket.send_to(&buf, client.addr).await;
-                            if let Err(e) = result {
-                                eprintln!(
-                                    "[PLAY] error sending UDP packet to client{}@{}: {}",
-                                    client.id, client.addr, e
-                                );
+            {
+                let mut st = st.borrow_mut();
+                if time.checked_rem(slowdown(st.speed)) == Some(0) && st.speed != Speed::Pause {
+                    st.kings_move();
+                    st.simulate();
+                    let data = S2CData::new(Default::default(), &st);
+
+                    executor.spawn_many(
+                        cl.iter().map(|client| {
+                            let mut data = data;
+                            data.set_player(client.player);
+                            let mut buf = [0u8; S2C_SIZE];
+                            buf[0] = curseofrust_msg::server_msg::STATE;
+                            buf[1..].copy_from_slice(bytemuck::bytes_of(&data));
+                            let socket = &socket;
+                            async move {
+                                let result = socket.send_to(&buf, client.addr).await;
+                                if let Err(e) = result {
+                                    eprintln!(
+                                        "[PLAY] error sending UDP packet to client{}@{}: {}",
+                                        client.id, client.addr, e
+                                    );
+                                }
                             }
-                        }
-                    }),
-                    &mut s2c_tasks,
-                )
+                        }),
+                        &mut TaskDetacher(PhantomData),
+                    )
+                }
             }
-            todo!()
+
+            timer.await;
         }
     }));
 
