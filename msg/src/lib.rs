@@ -169,6 +169,8 @@ pub struct S2CData {
     __pad2: [u8; __S2C_PAD_2_LEN],
 }
 
+pub const S2C_SIZE: usize = std::mem::size_of::<S2CData>() + 1;
+
 #[repr(C)]
 struct UnsafeS2CData {
     player: u8,

@@ -4,12 +4,13 @@ use std::{
     time::SystemTime,
 };
 
+use async_executor::LocalExecutor;
 use async_io::Async;
 use curseofrust::{
     state::{MultiplayerOpts, State},
     Player, Speed,
 };
-use curseofrust_msg::{ClientRecord, ServerMode, C2S_SIZE};
+use curseofrust_msg::{bytemuck, ClientRecord, S2CData, C2S_SIZE, S2C_SIZE};
 
 const DEFAULT_NAME: &str = include_str!("../jim.txt");
 
@@ -65,18 +66,46 @@ fn main() -> Result<(), DirectBoxedError> {
     let mut st = State::new(b_opt)?;
     let socket = Async::new(UdpSocket::bind(addr)?)?;
     let mut time = 0i32;
-    loop {
-        time += 1;
-        if time >= 1600 {
-            time = 0
-        }
+    let executor = LocalExecutor::new();
+    let mut s2c_tasks = Vec::with_capacity(cl.len());
+    futures_lite::future::block_on(executor.run(async {
+        loop {
+            time += 1;
+            if time >= 1600 {
+                time = 0
+            }
 
-        if time.checked_rem(slowdown(st.speed)) == Some(0) && st.speed != Speed::Pause {
-            st.kings_move();
-            st.simulate();
+            if time.checked_rem(slowdown(st.speed)) == Some(0) && st.speed != Speed::Pause {
+                st.kings_move();
+                st.simulate();
+                let data = S2CData::new(Default::default(), &st);
+                s2c_tasks.drain(..).for_each(async_executor::Task::detach);
+                executor.spawn_many(
+                    cl.iter().map(|client| {
+                        let mut data = data;
+                        data.set_player(client.player);
+                        let mut buf = [0u8; S2C_SIZE];
+                        buf[0] = curseofrust_msg::server_msg::STATE;
+                        buf[1..].copy_from_slice(bytemuck::bytes_of(&data));
+                        let socket = &socket;
+                        async move {
+                            let result = socket.send_to(&buf, client.addr).await;
+                            if let Err(e) = result {
+                                eprintln!(
+                                    "[PLAY] error sending UDP packet to client{}@{}: {}",
+                                    client.id, client.addr, e
+                                );
+                            }
+                        }
+                    }),
+                    &mut s2c_tasks,
+                )
+            }
+            todo!()
         }
-    }
-    todo!()
+    }));
+
+    Ok(())
 }
 
 struct DirectBoxedError {
