@@ -14,6 +14,8 @@ mod server;
 pub use client::*;
 pub use server::*;
 
+pub use bytemuck;
+
 /// Data structure a client transferred to a server.
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]

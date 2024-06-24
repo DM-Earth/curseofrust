@@ -10,6 +10,7 @@ curseofrust = { path = ".." }
 curseofrust-cli-parser = { path = "../cli" }
 curseofrust-msg = { path = "../msg" }
 futures-lite = "2.3.0"
+async-executor = "1.12"
 async-io = "2.3"
 fastrand = "2.1.0"
 
