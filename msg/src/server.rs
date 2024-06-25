@@ -1,6 +1,6 @@
 //! Server utils.
 
-use std::net::SocketAddr;
+use std::{borrow::Cow, net::SocketAddr};
 
 use curseofrust::{state::State, Player, Pos, FLAG_POWER, MAX_HEIGHT, MAX_WIDTH};
 
@@ -13,13 +13,14 @@ pub struct ClientRecord {
     /// Player of the client.
     pub player: Player,
     pub id: u32,
-    pub name: String,
+    pub name: Cow<'static, str>,
     /// Socket address of the client.
     pub addr: SocketAddr,
 }
 
 /// Mode of a server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[deprecated = "this should not be used"]
 pub enum ServerMode {
     /// Waiting for clients.
     Lobby,

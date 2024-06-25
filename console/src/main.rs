@@ -60,7 +60,7 @@ impl Debug for DirectBoxedError {
 
 impl<T> From<T> for DirectBoxedError
 where
-    T: std::error::Error + Send + Sync + 'static,
+    T: std::error::Error + 'static,
 {
     #[inline]
     fn from(value: T) -> Self {
@@ -70,7 +70,7 @@ where
     }
 }
 
-type BoxedError = Box<dyn std::error::Error + Send + Sync>;
+type BoxedError = Box<dyn std::error::Error>;
 
 struct State<W> {
     s: curseofrust::state::State,

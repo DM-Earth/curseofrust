@@ -13,7 +13,7 @@ impl std::str::FromStr for StencilWrapper {
             "rect" => Stencil::Rect,
             "hex" => Stencil::Hex,
             _ => {
-                return Err(Error::UnknowVariant {
+                return Err(Error::UnknownVariant {
                     ty: "shape",
                     variants: &["rhombus", "rect", "hex"],
                     value: s.to_owned(),
@@ -36,7 +36,7 @@ impl std::str::FromStr for DifficultyWrapper {
             "h" => Difficulty::Hard,
             "hh" => Difficulty::Hardest,
             _ => {
-                return Err(Error::UnknowVariant {
+                return Err(Error::UnknownVariant {
                     ty: "difficulty",
                     variants: &["ee", "e", "n", "h", "hh"],
                     value: s.to_owned(),
@@ -62,7 +62,7 @@ impl std::str::FromStr for SpeedWrapper {
             "ff" => Speed::Faster,
             "fff" => Speed::Fastest,
             _ => {
-                return Err(Error::UnknowVariant {
+                return Err(Error::UnknownVariant {
                     ty: "speed",
                     variants: &["p", "sss", "ss", "s", "n", "f", "ff", "fff"],
                     value: s.to_owned(),

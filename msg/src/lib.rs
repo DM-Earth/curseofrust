@@ -14,6 +14,8 @@ mod server;
 pub use client::*;
 pub use server::*;
 
+pub use bytemuck;
+
 /// Data structure a client transferred to a server.
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
@@ -26,6 +28,8 @@ pub struct C2SData {
     #[doc(alias = "info")]
     pub msg: u8,
 }
+
+pub const C2S_SIZE: usize = std::mem::size_of::<C2SData>() + 1;
 
 #[repr(C)]
 #[allow(dead_code)]
@@ -164,6 +168,8 @@ pub struct S2CData {
     pub tile: [[u8; MAX_HEIGHT as usize]; MAX_WIDTH as usize],
     __pad2: [u8; __S2C_PAD_2_LEN],
 }
+
+pub const S2C_SIZE: usize = std::mem::size_of::<S2CData>() + 1;
 
 #[repr(C)]
 struct UnsafeS2CData {

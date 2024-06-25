@@ -1,4 +1,4 @@
-use std::{cmp::max, ffi::OsStr};
+use std::{cmp::max, ffi::OsStr, process::exit};
 
 use curseofrust::state::{BasicOpts, MultiplayerOpts};
 
@@ -41,7 +41,7 @@ pub fn parse(
                 }
                 match flag {
                     'W' => basic_opts.width = parse!("-W", "integer")?,
-                    // Minimium height.
+                    // Minimum height.
                     'H' => basic_opts.height = max(parse!("-H", "integer")?, 5),
                     'S' => basic_opts.shape = parse!("-S", "shape", Stencil)?.0,
                     'l' => basic_opts.locations = parse!("-l", "integer")?,
@@ -89,9 +89,11 @@ pub fn parse(
                     }
                     'v' => {
                         println!("curseofrust");
+                        exit(0)
                     }
                     'h' => {
                         println!("{HELP_MSG}");
+                        exit(0)
                     }
                     f => return Err(Error::UnknownFlag { flag: f }),
                 }
@@ -121,7 +123,7 @@ pub enum Error {
     UnknownFlag {
         flag: char,
     },
-    UnknowVariant {
+    UnknownVariant {
         ty: &'static str,
         variants: &'static [&'static str],
         value: String,
@@ -143,7 +145,7 @@ impl std::fmt::Display for Error {
                 write!(f, "non-unicode value: {content:?}")
             }
             Error::UnknownFlag { flag } => write!(f, "unknown flag: {flag}"),
-            Error::UnknowVariant {
+            Error::UnknownVariant {
                 ty,
                 variants,
                 value,
@@ -181,8 +183,8 @@ impl From<std::net::AddrParseError> for Error {
 impl std::error::Error for Error {}
 
 /// The help message for the program.
-pub const HELP_MSG: &str = r#"
-                                __
+pub const HELP_MSG: &str = // Pad
+    r#"                                __
    ____                        /  ]  ________             __
   / __ \_ _ ___ ___ ___    __ _| |_  |  ___  \__  __ ___ _| |__
 _/ /  \/ | |X _/ __/ __\  /   \   /  | |___| | | |  / __/_  __/
