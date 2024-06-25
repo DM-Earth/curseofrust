@@ -20,7 +20,7 @@ pub struct ClientRecord {
 
 /// Mode of a server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[deprecated = "this should not be used"]
+#[deprecated = "This should not be used"]
 pub enum ServerMode {
     /// Waiting for clients.
     Lobby,

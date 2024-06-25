@@ -60,43 +60,40 @@ fn main() -> Result<(), DirectBoxedError> {
     let addr = (IpAddr::from([127, 0, 0, 1]), port);
     let mut cl: Vec<ClientRecord> = vec![];
 
-    {
-        let socket = UdpSocket::bind(addr)?;
-        socket.set_nonblocking(true)?;
-        let mut c2s_buf = [0u8; C2S_SIZE];
+    let socket = UdpSocket::bind(addr)?;
+    socket.set_nonblocking(true)?;
+    let mut c2s_buf = [0u8; C2S_SIZE];
 
-        'lobby: loop {
-            if let Ok((nread, peer_addr)) = socket.recv_from(&mut c2s_buf) {
-                if nread >= 1 && c2s_buf[0] > 0 {
-                    if !cl.iter().any(|rec| rec.addr == peer_addr) {
-                        let id = cl.len() as u32;
-                        cl.push(ClientRecord {
-                            addr: peer_addr,
-                            player: Player(id + 1),
-                            id,
-                            name: DEFAULT_NAME.into(),
-                        });
+    'lobby: loop {
+        if let Ok((nread, peer_addr)) = socket.recv_from(&mut c2s_buf) {
+            if nread >= 1 && c2s_buf[0] > 0 {
+                if !cl.iter().any(|rec| rec.addr == peer_addr) {
+                    let id = cl.len() as u32;
+                    cl.push(ClientRecord {
+                        addr: peer_addr,
+                        player: Player(id + 1),
+                        id,
+                        name: DEFAULT_NAME.into(),
+                    });
 
-                        println!("[LOBBY] client{}@{} connected", id, peer_addr);
-                    }
+                    println!("[LOBBY] client{}@{} connected", id, peer_addr);
+                }
 
-                    if cl.len() >= b_opt.clients {
-                        b_opt.clients = cl.len();
-                        println!(
-                            "[LOBBY] server mode switched to PLAY with {} clients",
-                            cl.len()
-                        );
-                        break 'lobby;
-                    }
+                if cl.len() >= b_opt.clients {
+                    b_opt.clients = cl.len();
+                    println!(
+                        "[LOBBY] server mode switched to PLAY with {} clients",
+                        cl.len()
+                    );
+                    break 'lobby;
                 }
             }
         }
     }
 
     let st = RefCell::new(State::new(b_opt)?);
-    let socket = UdpSocket::bind(addr)?;
     socket.connect(SocketAddrs(cl.iter().map(|client| client.addr)))?;
-    let socket = Async::new(socket)?;
+    let socket = Async::new_nonblocking(socket)?;
     let mut time = 0i32;
     let executor = LocalExecutor::new();
 
