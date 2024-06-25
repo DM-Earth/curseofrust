@@ -1,4 +1,4 @@
-use std::{cmp::max, ffi::OsStr, process::exit};
+use std::{cmp::max, ffi::OsStr, net::SocketAddr, process::exit};
 
 use curseofrust::state::{BasicOpts, MultiplayerOpts};
 
@@ -66,25 +66,28 @@ pub fn parse(
                         };
                     }
                     'C' => {
-                        if let MultiplayerOpts::Client(ref mut addr) = multiplayer_opts {
-                            addr.set_ip(parse!("-C", "IP")?);
+                        let parsed = parse!("-C", "SocketAddr")?;
+                        if let MultiplayerOpts::Client { ref mut server, .. } = multiplayer_opts {
+                            *server = parsed;
                         } else {
-                            multiplayer_opts = MultiplayerOpts::Client(
-                                (parse!("-C", "IP", std::net::IpAddr)?, DEFAULT_CLIENT_PORT).into(),
-                            );
+                            multiplayer_opts = MultiplayerOpts::Client {
+                                server: parsed,
+                                port: DEFAULT_CLIENT_PORT,
+                            }
                         }
                     }
                     'c' => {
-                        if let MultiplayerOpts::Client(ref mut addr) = multiplayer_opts {
-                            addr.set_port(parse!("-c", "integer")?);
+                        let parsed = parse!("-c", "integer")?;
+                        if let MultiplayerOpts::Client { ref mut port, .. } = multiplayer_opts {
+                            *port = parsed
                         } else {
-                            multiplayer_opts = MultiplayerOpts::Client(
-                                (
-                                    std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
-                                    parse!("-c", "integer")?,
-                                )
-                                    .into(),
-                            );
+                            multiplayer_opts = MultiplayerOpts::Client {
+                                server: SocketAddr::from((
+                                    std::net::Ipv4Addr::LOCALHOST,
+                                    DEFAULT_SERVER_PORT,
+                                )),
+                                port: parsed,
+                            };
                         }
                     }
                     'v' => {

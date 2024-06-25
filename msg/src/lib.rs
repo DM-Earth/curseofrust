@@ -3,7 +3,7 @@
 use bytemuck::{AnyBitPattern, NoUninit, Zeroable};
 use curseofrust::{
     grid::{HabitLand, Tile},
-    MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH,
+    Pos, MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH,
 };
 
 use std::mem::offset_of;
@@ -202,6 +202,17 @@ unsafe impl NoUninit for C2SData {}
 unsafe impl Zeroable for S2CData {}
 unsafe impl AnyBitPattern for S2CData {}
 unsafe impl NoUninit for S2CData {}
+
+impl From<(Pos, u8)> for C2SData {
+    #[inline]
+    fn from(value: (Pos, u8)) -> Self {
+        Self {
+            x: value.0 .0 as u8,
+            y: value.0 .1 as u8,
+            msg: value.1,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

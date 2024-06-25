@@ -97,7 +97,10 @@ pub enum MultiplayerOpts {
     Server {
         port: u16,
     },
-    Client(SocketAddr),
+    Client {
+        server: SocketAddr,
+        port: u16,
+    },
     #[default]
     None,
 }
