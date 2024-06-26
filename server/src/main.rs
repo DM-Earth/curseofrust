@@ -28,20 +28,6 @@ impl<T> Extend<async_executor::Task<T>> for TaskDetacher<T> {
     }
 }
 
-struct SocketAddrs<T>(T);
-
-impl<T> std::net::ToSocketAddrs for SocketAddrs<T>
-where
-    T: IntoIterator<Item = SocketAddr> + Clone,
-{
-    type Iter = <T as IntoIterator>::IntoIter;
-
-    #[inline(always)]
-    fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
-        Ok(self.0.clone().into_iter())
-    }
-}
-
 fn main() -> Result<(), DirectBoxedError> {
     fastrand::seed(
         SystemTime::UNIX_EPOCH
@@ -98,7 +84,6 @@ fn main() -> Result<(), DirectBoxedError> {
     }
 
     let st = RefCell::new(State::new(b_opt)?);
-    socket.connect(SocketAddrs(cl.iter().map(|client| client.addr)))?;
     let socket = Async::new_nonblocking(socket)?;
     let mut time = 0i32;
     let executor = LocalExecutor::new();
