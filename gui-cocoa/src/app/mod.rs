@@ -1,3 +1,4 @@
+use std::net::{SocketAddr, UdpSocket};
 use std::sync::Once;
 use std::thread::sleep;
 use std::time::{Instant, UNIX_EPOCH};
@@ -39,6 +40,8 @@ use curseofrust::{
 };
 use curseofrust::{Player, Pos, MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH};
 use dispatch::{Queue, QueueAttribute};
+use local_ip_address::{local_ip, local_ipv6};
+use msg::{bytemuck, server_msg, S2CData, C2S_SIZE, S2C_SIZE};
 
 use self::output::{
     draw_line, draw_tile_2h, draw_tile_noise, is_cliff, is_within_grid, pop_to_symbol, pos_x,
@@ -64,10 +67,14 @@ pub struct CorApp {
     // Misc
     queue: Queue,
     _listener: EventMonitor,
-    /// Indicates whether already started a game.
+    /// Indicates whether:
+    /// - a local game has already started.
+    /// - the client has successfully connected to a server.
     run: bool,
     /// Should terminate game and switch back to error message view.
     terminate: bool,
+    /// [`Some`] if playing a multiplayer game.
+    socket: Option<UdpSocket>,
 }
 
 impl AppDelegate for CorApp {
@@ -126,6 +133,7 @@ impl CorApp {
             }),
             run: false,
             terminate: false,
+            socket: None,
         }
     }
 
@@ -184,7 +192,7 @@ impl CorApp {
             .action(|| {
                 let this = app_from_objc::<Self>();
                 if !this.run {
-                    this.queue.exec_async(|| app_from_objc::<Self>().run())
+                    this.queue.exec_async(|| app_from_objc::<Self>().pre_run())
                 }
             });
         let help = MenuItem::new("Curse of Rust Help").action(|| {
@@ -275,34 +283,54 @@ impl CorApp {
     }
 
     /// Starts the game.
-    fn run(&mut self) {
+    fn pre_run(&mut self) {
         sync_main_thread(|| {
             app_from_objc::<Self>().game_window.show();
         });
         fastrand::seed(UNIX_EPOCH.elapsed().unwrap_or_default().as_secs());
         match self.load_config() {
             Ok((op, mop)) => {
+                let common_init = || {
+                    match State::new(op) {
+                        Ok(state) => self.state = Some(state),
+                        Err(err) => {
+                            self.game_window
+                                .delegate
+                                .as_ref()
+                                .unwrap()
+                                .display_err(&err.to_string(), None);
+                            return false;
+                        }
+                    };
+                    self.tile_variant = Some(from_fn(|_i| from_fn(|_j| fastrand::i16(..))));
+                    self.pop_variant = Some(from_fn(|_i| from_fn(|_j| fastrand::i16(..))));
+                    self.ui = Some(UI::new(self.state.as_ref().unwrap()));
+                    true
+                };
                 match mop {
                     MultiplayerOpts::None => {
-                        self.run = true;
+                        if !common_init() {
+                            return;
+                        }
+                        self.run();
                     }
-                    _ => {
+                    MultiplayerOpts::Server { .. } => {
                         self.game_window.delegate.as_ref().unwrap().display_err(
-                            "Multiplayer mode is currently not implemented.",
+                            "Integrated server is currently not implemented, please use dedicated server.",
                             Some(Color::SystemOrange),
                         );
-                        return;
                     }
-                }
-                match State::new(op) {
-                    Ok(state) => self.state = Some(state),
-                    Err(err) => {
-                        self.game_window
-                            .delegate
-                            .as_ref()
-                            .unwrap()
-                            .display_err(&err.to_string(), None);
-                        return;
+                    MultiplayerOpts::Client { server, port } => {
+                        if !common_init() {
+                            return;
+                        }
+                        if let Err((msg, color)) = self.run_client(server, port) {
+                            self.game_window
+                                .delegate
+                                .as_ref()
+                                .unwrap()
+                                .display_err(&msg, color);
+                        }
                     }
                 }
             }
@@ -312,62 +340,22 @@ impl CorApp {
                     .as_ref()
                     .unwrap()
                     .display_err(&err.to_string(), None);
-                return;
             }
         }
-        self.tile_variant = Some(from_fn(|_i| from_fn(|_j| fastrand::i16(..))));
-        self.pop_variant = Some(from_fn(|_i| from_fn(|_j| fastrand::i16(..))));
-        self.ui = Some(UI::new(self.state.as_ref().unwrap()));
-        {
-            let seed = self.state.as_ref().unwrap().seed;
-            sync_main_thread(move || {
-                let this = app_from_objc::<Self>();
-                this.game_window
-                    .set_title(format!("Singleplayer - seed: {}", seed).as_str());
-                this.game_window
-                    .set_content_view(&this.game_window.delegate.as_ref().unwrap().game_view);
-            });
-        }
-        let screen_size = CGSize::new(
-            i16::max(
-                (self.ui.as_ref().unwrap().xlen + 2) as i16 * TILE_WIDTH,
-                75 * TYPE_WIDTH + TILE_WIDTH,
-            )
-            .into(),
-            ((self.state.as_ref().unwrap().grid.height() as u16 + 3) as i16 * TILE_HEIGHT
-                + 5 * TYPE_HEIGHT)
-                .into(),
-        );
-        let old_frame: CGRect;
-        unsafe {
-            let alloc: id = msg_send![class!(NSImage), alloc];
-            let obj: id = msg_send![alloc, initWithSize:screen_size];
-            self.screen = Some(Image::with(obj));
-            // Resize window to fit `screen`.
-            old_frame = msg_send![self.game_window.objc, frame];
-            let old_content: CGRect =
-                msg_send![self.game_window.objc, contentRectForFrameRect:old_frame];
-            let new_content = CGRect::new(
-                &CGPoint::new(
-                    old_content.origin.x,
-                    old_content.origin.y + old_content.size.height - screen_size.height,
-                ),
-                &screen_size,
-            );
-            let new_frame: CGRect =
-                msg_send![self.game_window.objc, frameRectForContentRect:new_content];
-            sync_main_thread(move || {
-                let this = app_from_objc::<Self>();
-                let _: () =
-                    msg_send![this.game_window.objc, setFrame:new_frame display:YES animate:YES];
-            });
-        }
-        self.game_window
-            .delegate
-            .as_ref()
-            .unwrap()
-            .game_view
-            .set_image(self.screen.as_ref().unwrap());
+    }
+
+    /// Start a singleplayer game.
+    fn run(&mut self) {
+        self.run = true;
+        let seed = self.state.as_ref().unwrap().seed;
+        sync_main_thread(move || {
+            let this = app_from_objc::<Self>();
+            this.game_window
+                .set_title(format!("Singleplayer - seed: {}", seed).as_str());
+            this.game_window
+                .set_content_view(&this.game_window.delegate.as_ref().unwrap().game_view);
+        });
+        let (screen_size, old_frame) = self.init_screen();
         let mut prev_time = Instant::now();
         let mut k: u16 = 0;
         while !self.terminate {
@@ -385,313 +373,7 @@ impl CorApp {
                     state.simulate();
                 }
                 if k % 5 == 0 {
-                    {
-                        autoreleasepool(|| {
-                            // Render start.
-                            unsafe {
-                                let background: id = msg_send![class!(NSColor), blackColor];
-                                let _: () = msg_send![self.screen.as_ref().unwrap().0, lockFocusFlipped:YES];
-                                // Draw background
-                                let _: () = msg_send![background, drawSwatchInRect:CGRect::new(&CGPoint::new(0., 0.), &screen_size)];
-                            }
-                            let state = self.state.as_mut().unwrap();
-                            let ui = self.ui.as_ref().unwrap();
-                            for j in 0..state.grid.height() as i16 {
-                                for i in -1..state.grid.width() as i16 + 1 {
-                                    // Draw cliffs.
-                                    let cliff = is_cliff(i, j, &state.grid);
-                                    if cliff.contains(&true) {
-                                        for (idx, bl) in cliff.iter().enumerate() {
-                                            if *bl {
-                                                draw_tile(
-                                                    7 + idx as i16,
-                                                    0,
-                                                    pos_x(ui, i),
-                                                    pos_y(j),
-                                                );
-                                            }
-                                        }
-                                        continue;
-                                    }
-                                    if !is_within_grid(i, j, &state.grid) {
-                                        continue;
-                                    }
-                                    match state.grid.tile(Pos(i as i32, j as i32)).unwrap() {
-                                        Tile::Void => {}
-                                        Tile::Habitable { land, units, owner } => {
-                                            // Draw grass.
-                                            draw_tile(
-                                                (self.tile_variant.as_ref().unwrap()[i as usize]
-                                                    [j as usize]
-                                                    % 6)
-                                                .abs(),
-                                                (self.tile_variant.as_ref().unwrap()[i as usize]
-                                                    [j as usize]
-                                                    / 6
-                                                    % 3)
-                                                .abs(),
-                                                pos_x(ui, i),
-                                                pos_y(j),
-                                            );
-                                            match land {
-                                                HabitLand::Village => draw_tile_2h(
-                                                    0,
-                                                    7 + 3 * owner.0 as i16,
-                                                    pos_x(ui, i),
-                                                    pos_y(j),
-                                                ),
-                                                HabitLand::Town => draw_tile_2h(
-                                                    1,
-                                                    7 + 3 * owner.0 as i16,
-                                                    pos_x(ui, i),
-                                                    pos_y(j),
-                                                ),
-                                                HabitLand::Fortress => draw_tile_2h(
-                                                    2,
-                                                    7 + 3 * owner.0 as i16,
-                                                    pos_x(ui, i),
-                                                    pos_y(j),
-                                                ),
-                                                HabitLand::Grassland => {
-                                                    let pop = units[owner.0 as usize];
-                                                    if pop > 0 {
-                                                        draw_tile_noise(
-                                                            pop_to_symbol(pop),
-                                                            8 + 3 * owner.0 as i16,
-                                                            pos_x(ui, i),
-                                                            pos_y(j),
-                                                            self.pop_variant.as_ref().unwrap()
-                                                                [i as usize]
-                                                                [j as usize],
-                                                        );
-                                                        if fastrand::i16(..) % 20 == 0 {
-                                                            let mut d = 1_i16;
-                                                            if owner != &state.controlled {
-                                                                d += 10;
-                                                            }
-                                                            let old_var =
-                                                                self.pop_variant.as_ref().unwrap()
-                                                                    [i as usize]
-                                                                    [j as usize];
-                                                            self.pop_variant.as_mut().unwrap()
-                                                                [i as usize]
-                                                                [j as usize] =
-                                                                (old_var + d) % 10000;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Tile::Mine(owner) => {
-                                            // Draw grass.
-                                            draw_tile(
-                                                (self.tile_variant.as_ref().unwrap()[i as usize]
-                                                    [j as usize]
-                                                    % 6)
-                                                .abs(),
-                                                (self.tile_variant.as_ref().unwrap()[i as usize]
-                                                    [j as usize]
-                                                    / 6
-                                                    % 3)
-                                                .abs(),
-                                                pos_x(ui, i),
-                                                pos_y(j),
-                                            );
-                                            // Draw mountain.
-                                            draw_tile_2h(
-                                                (self.tile_variant.as_ref().unwrap()[i as usize]
-                                                    [j as usize]
-                                                    % 5)
-                                                .abs(),
-                                                5,
-                                                pos_x(ui, i),
-                                                pos_y(j),
-                                            );
-                                            // Draw mine/.
-                                            if owner.is_neutral() {
-                                                draw_tile(5, 5, pos_x(ui, i), pos_y(j));
-                                            } else {
-                                                // Draw currency sign if controlled by a player.
-                                                draw_tile_2h(5, 5, pos_x(ui, i), pos_y(j));
-                                            }
-                                        }
-                                        Tile::Mountain => {
-                                            // Draw grass.
-                                            draw_tile(
-                                                (self.tile_variant.as_ref().unwrap()[i as usize]
-                                                    [j as usize]
-                                                    % 6)
-                                                .abs(),
-                                                (self.tile_variant.as_ref().unwrap()[i as usize]
-                                                    [j as usize]
-                                                    / 6
-                                                    % 3)
-                                                .abs(),
-                                                pos_x(ui, i),
-                                                pos_y(j),
-                                            );
-                                            // Draw mountain.
-                                            draw_tile_2h(
-                                                (self.tile_variant.as_ref().unwrap()[i as usize]
-                                                    [j as usize]
-                                                    % 5)
-                                                .abs(),
-                                                5,
-                                                pos_x(ui, i),
-                                                pos_y(j),
-                                            );
-                                        }
-                                    }
-                                    // Draw flags.
-                                    for p in 0..MAX_PLAYERS as u32 {
-                                        if state.fgs[p as usize].is_flagged(Pos(i as i32, j as i32))
-                                        {
-                                            draw_tile_2h(
-                                                match Player(p) == state.controlled {
-                                                    true => 3,
-                                                    false => 4,
-                                                },
-                                                7 + 3 * p as i16,
-                                                pos_x(ui, i),
-                                                pos_y(j),
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                            // Draw cursor.
-                            draw_tile_2h(
-                                6,
-                                5,
-                                pos_x(ui, ui.cursor.0 as i16 - 1),
-                                pos_y(ui.cursor.1 as i16),
-                            );
-                            draw_tile_2h(
-                                7,
-                                5,
-                                pos_x(ui, ui.cursor.0 as i16),
-                                pos_y(ui.cursor.1 as i16),
-                            );
-                            draw_tile_2h(
-                                8,
-                                5,
-                                pos_x(ui, ui.cursor.0 as i16 + 1),
-                                pos_y(ui.cursor.1 as i16),
-                            );
-                            // Draw text.
-                            let base_y = (pos_y(state.grid.height() as i16) + 1) * TILE_HEIGHT;
-                            draw_str("Gold:", Player::NEUTRAL, TILE_WIDTH, base_y);
-                            draw_str(
-                                &format!("{}", state.countries[state.controlled.0 as usize].gold),
-                                state.controlled,
-                                TILE_WIDTH + 6 * TYPE_WIDTH,
-                                base_y,
-                            );
-                            draw_str(
-                                "Prices: 160 240 320",
-                                Player::NEUTRAL,
-                                TILE_WIDTH,
-                                base_y + TYPE_HEIGHT,
-                            );
-                            draw_str(
-                                "Date:",
-                                Player::NEUTRAL,
-                                TILE_WIDTH + 54 * TYPE_WIDTH,
-                                base_y,
-                            );
-                            let (y, m, d) = time_to_ymd(state.time);
-                            draw_str(
-                                &format!("{y}-{m:02}-{d:02}"),
-                                state.controlled,
-                                TILE_WIDTH + 60 * TYPE_WIDTH,
-                                base_y,
-                            );
-                            draw_str(
-                                &format!(
-                                    "Speed: {}",
-                                    match state.speed {
-                                        Speed::Fast => "Fast",
-                                        Speed::Faster => "Faster",
-                                        Speed::Fastest => "Fastest",
-                                        Speed::Normal => "Normal",
-                                        Speed::Pause => "Pause",
-                                        Speed::Slow => "Slow",
-                                        Speed::Slower => "Slower",
-                                        Speed::Slowest => "Slowest",
-                                    }
-                                ),
-                                Player::NEUTRAL,
-                                TILE_WIDTH + 54 * TYPE_WIDTH,
-                                base_y + TYPE_HEIGHT,
-                            );
-                            draw_str(
-                                "Population:",
-                                Player::NEUTRAL,
-                                TILE_WIDTH + 23 * TYPE_WIDTH,
-                                base_y,
-                            );
-                            for p in 1..MAX_PLAYERS {
-                                draw_str(
-                                    &format!(
-                                        "{:>3}",
-                                        state
-                                            .grid
-                                            .tile(Pos(ui.cursor.0, ui.cursor.1))
-                                            .unwrap()
-                                            .units()[p]
-                                    ),
-                                    Player(p as u32),
-                                    TILE_WIDTH + (23 + 4 * (p as i16 - 1)) * TYPE_WIDTH,
-                                    base_y + TYPE_HEIGHT,
-                                );
-                            }
-                            draw_str(
-                                "[Space] flag",
-                                Player::NEUTRAL,
-                                TILE_WIDTH,
-                                base_y + 3 * TYPE_HEIGHT,
-                            );
-                            draw_str(
-                                "[R] or [V] build",
-                                Player::NEUTRAL,
-                                TILE_WIDTH + 27 * TYPE_WIDTH,
-                                base_y + 3 * TYPE_HEIGHT,
-                            );
-                            draw_str(
-                                "[X],[C] mass rmeove",
-                                Player::NEUTRAL,
-                                TILE_WIDTH,
-                                base_y + 4 * TYPE_HEIGHT,
-                            );
-                            draw_str(
-                                "[S] slower [F] faster",
-                                Player::NEUTRAL,
-                                TILE_WIDTH + 54 * TYPE_WIDTH,
-                                base_y + 3 * TYPE_HEIGHT,
-                            );
-                            draw_str(
-                                "[P] pause",
-                                Player::NEUTRAL,
-                                TILE_WIDTH + 54 * TYPE_WIDTH,
-                                base_y + 4 * TYPE_HEIGHT,
-                            );
-                            // Draw line.
-                            draw_line(base_y);
-                            unsafe {
-                                let _: () = msg_send![self.screen.as_ref().unwrap().0, unlockFocus];
-                            }
-                        })
-                    }
-                    // Flush.
-                    sync_main_thread(|| {
-                        app_from_objc::<Self>()
-                            .game_window
-                            .delegate
-                            .as_ref()
-                            .unwrap()
-                            .game_view
-                            .set_needs_display(true);
-                    });
+                    self.render(screen_size);
                 }
             } else {
                 sleep(DELAY / 2);
@@ -706,6 +388,90 @@ impl CorApp {
         self.game_window.delegate.as_ref().unwrap().restore(false);
         self.terminate = false;
         self.run = false;
+    }
+
+    /// Start as a multiplayer client.
+    fn run_client(&mut self, server: SocketAddr, port: u16) -> Result<(), (String, Option<Color>)> {
+        let mut prev_time = Instant::now();
+        let mut k: u16 = 0;
+        let local_addr = SocketAddr::new(
+            match server {
+                SocketAddr::V4(_) => local_ip(),
+                SocketAddr::V6(_) => local_ipv6(),
+            }
+            .map_err(|e| ("local_ip error: ".to_owned() + &e.to_string(), None))?,
+            port,
+        );
+        let socket = UdpSocket::bind(local_addr)
+            .map_err(|e| ("bind error: ".to_owned() + &e.to_string(), None))?;
+        socket
+            .connect(server)
+            .map_err(|e| ("connect error: ".to_owned() + &e.to_string(), None))?;
+        socket
+            .set_nonblocking(true)
+            .map_err(|e| ("set_nonblocking error: ".to_owned() + &e.to_string(), None))?;
+        self.socket = Some(socket);
+        let mut s2c_buf = [0u8; S2C_SIZE];
+        let mut screen_size: CGSize = Default::default();
+        let mut old_frame: CGRect = Default::default();
+        while !self.terminate {
+            if Instant::now().duration_since(prev_time) >= DELAY {
+                prev_time += DELAY;
+                k += 1;
+                k %= 1600;
+
+                if k % 50 == 0 {
+                    const ALIVE_PACKET: [u8; C2S_SIZE] = [msg::client_msg::IS_ALIVE, 0, 0, 0];
+                    self.socket
+                        .as_ref()
+                        .unwrap()
+                        .send(&ALIVE_PACKET)
+                        .map_err(|e| ("send error: ".to_owned() + &e.to_string(), None))?;
+                }
+
+                // Start fetch state
+                let socket_ref = self.socket.as_ref().unwrap();
+                let nread = socket_ref
+                    .recv(&mut s2c_buf)
+                    .map_err(|e| ("recv error: ".to_owned() + &e.to_string(), None))?;
+                if nread < S2C_SIZE {
+                    Err((format!("short read: {}<{}", nread, S2C_SIZE), None))?;
+                }
+                let (&msg, body) = s2c_buf
+                    .split_first()
+                    .expect("s2c_buf should be longer than one byte");
+                let data: S2CData = *bytemuck::from_bytes(body);
+                if msg == server_msg::STATE {
+                    msg::apply_s2c_msg(self.state.as_mut().unwrap(), data)
+                        .map_err(|e| ("apply_s2c_msg error: ".to_owned() + &e.to_string(), None))?;
+                    if !self.run {
+                        self.run = true;
+                        (screen_size, old_frame) = self.init_screen();
+                        self.ui = Some(UI::new(self.state.as_ref().unwrap()));
+                    }
+                }
+                // End fetch state
+
+                if self.run && k % 5 == 0 {
+                    self.render(screen_size);
+                }
+            } else {
+                sleep(DELAY / 2);
+            }
+        }
+        // Clean up.
+        sync_main_thread(move || {
+            let this = app_from_objc::<Self>();
+            let _: () = unsafe {
+                msg_send![this.game_window.objc, setFrame:old_frame display:YES animate:YES]
+            };
+        });
+        self.game_window.delegate.as_ref().unwrap().restore(false);
+        self.run = false;
+        self.terminate = false;
+        // Drop UdpSocket.
+        self.socket = None;
+        Ok(())
     }
 
     pub fn load_config(&self) -> Result<(BasicOpts, MultiplayerOpts), cli_parser::Error> {
@@ -760,7 +526,26 @@ impl CorApp {
         /// Remove half flags.
         const K_C: u16 = 0x08;
 
+        macro_rules! c2s_msg {
+            ($msg:ident, $info:expr) => {{
+                let data: msg::C2SData = (self.ui.as_ref().unwrap().cursor, $info).into();
+                let mut buf = [0u8; C2S_SIZE];
+                let (msg, d) = buf
+                    .split_first_mut()
+                    .expect("the buffer should longer than one byte");
+                *msg = msg::client_msg::$msg;
+                d.copy_from_slice(bytemuck::bytes_of(&data));
+                let socket = self.socket.as_ref().unwrap();
+                let _ = socket.send(&buf);
+            }};
+            ($msg:ident) => {
+                c2s_msg!($msg, 0)
+            };
+        }
+
         let key_code: u16 = unsafe { msg_send![event.0, keyCode] };
+        let multiplayer = self.socket.is_some();
+
         match key_code {
             K_LEFT | K_H => {
                 let ui = self.ui.as_mut().unwrap();
@@ -796,10 +581,18 @@ impl CorApp {
                 let state = self.state.as_mut().unwrap();
                 let fg = &mut state.fgs[state.controlled.0 as usize];
                 let cursor = self.ui.as_ref().unwrap().cursor;
-                if fg.is_flagged(cursor) {
-                    fg.remove(&state.grid, cursor, FLAG_POWER);
+                if !multiplayer {
+                    if fg.is_flagged(cursor) {
+                        fg.remove(&state.grid, cursor, FLAG_POWER);
+                    } else {
+                        fg.add(&state.grid, cursor, FLAG_POWER);
+                    }
                 } else {
-                    fg.add(&state.grid, cursor, FLAG_POWER);
+                    if fg.is_flagged(cursor) {
+                        c2s_msg!(FLAG_OFF);
+                    } else {
+                        c2s_msg!(FLAG_ON);
+                    }
                 }
             }
             K_Q => self.terminate = true,
@@ -815,31 +608,371 @@ impl CorApp {
                 let state = self.state.as_mut().unwrap();
                 let speed = &mut state.speed;
                 let prev_speed = &mut state.prev_speed;
-                if *speed == Speed::Pause {
-                    *speed = *prev_speed;
+                if !multiplayer {
+                    if *speed == Speed::Pause {
+                        *speed = *prev_speed;
+                    } else {
+                        *prev_speed = *speed;
+                        *speed = Speed::Pause;
+                    }
                 } else {
-                    *prev_speed = *speed;
-                    *speed = Speed::Pause;
+                    if *speed == Speed::Pause {
+                        c2s_msg!(UNPAUSE);
+                    } else {
+                        *prev_speed = *speed;
+                        c2s_msg!(PAUSE);
+                    }
                 }
             }
             K_R | K_V => {
-                let state = self.state.as_mut().unwrap();
-                let _ = state.grid.build(
-                    &mut state.countries[state.controlled.0 as usize],
-                    self.ui.as_ref().unwrap().cursor,
-                );
+                if !multiplayer {
+                    let state = self.state.as_mut().unwrap();
+                    let _ = state.grid.build(
+                        &mut state.countries[state.controlled.0 as usize],
+                        self.ui.as_ref().unwrap().cursor,
+                    );
+                } else {
+                    c2s_msg!(BUILD);
+                }
             }
             K_X => {
-                let state = self.state.as_mut().unwrap();
-                state.fgs[state.controlled.0 as usize].remove_with_prob(&state.grid, 1.);
+                if !multiplayer {
+                    let state = self.state.as_mut().unwrap();
+                    state.fgs[state.controlled.0 as usize].remove_with_prob(&state.grid, 1.);
+                } else {
+                    c2s_msg!(FLAG_OFF_ALL);
+                }
             }
             K_C => {
-                let state = self.state.as_mut().unwrap();
-                state.fgs[state.controlled.0 as usize].remove_with_prob(&state.grid, 0.5);
+                if !multiplayer {
+                    let state = self.state.as_mut().unwrap();
+                    state.fgs[state.controlled.0 as usize].remove_with_prob(&state.grid, 0.5);
+                } else {
+                    c2s_msg!(FLAG_OFF_HALF);
+                }
             }
             _ => return Some(event),
         }
         None
+    }
+
+    /// Render the current [`State`].
+    fn render(&mut self, screen_size: CGSize) {
+        autoreleasepool(|| {
+            // Render start.
+            unsafe {
+                let background: id = msg_send![class!(NSColor), blackColor];
+                let _: () = msg_send![self.screen.as_ref().unwrap().0, lockFocusFlipped:YES];
+                // Draw background
+                let _: () = msg_send![background, drawSwatchInRect:CGRect::new(&CGPoint::new(0., 0.), &screen_size)];
+            }
+            let state = self.state.as_ref().unwrap();
+            let ui = self.ui.as_ref().unwrap();
+            for j in 0..state.grid.height() as i16 {
+                for i in -1..state.grid.width() as i16 + 1 {
+                    // Draw cliffs.
+                    let cliff = is_cliff(i, j, &state.grid);
+                    if cliff.contains(&true) {
+                        for (idx, bl) in cliff.iter().enumerate() {
+                            if *bl {
+                                draw_tile(7 + idx as i16, 0, pos_x(ui, i), pos_y(j));
+                            }
+                        }
+                        continue;
+                    }
+                    if !is_within_grid(i, j, &state.grid) {
+                        continue;
+                    }
+                    match state.grid.tile(Pos(i as i32, j as i32)).unwrap() {
+                        Tile::Void => {}
+                        Tile::Habitable { land, units, owner } => {
+                            // Draw grass.
+                            draw_tile(
+                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6)
+                                    .abs(),
+                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6
+                                    % 3)
+                                .abs(),
+                                pos_x(ui, i),
+                                pos_y(j),
+                            );
+                            match land {
+                                HabitLand::Village => {
+                                    draw_tile_2h(0, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
+                                }
+                                HabitLand::Town => {
+                                    draw_tile_2h(1, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
+                                }
+                                HabitLand::Fortress => {
+                                    draw_tile_2h(2, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
+                                }
+                                HabitLand::Grassland => {
+                                    let pop = units[owner.0 as usize];
+                                    if pop > 0 {
+                                        draw_tile_noise(
+                                            pop_to_symbol(pop),
+                                            8 + 3 * owner.0 as i16,
+                                            pos_x(ui, i),
+                                            pos_y(j),
+                                            self.pop_variant.as_ref().unwrap()[i as usize]
+                                                [j as usize],
+                                        );
+                                        if fastrand::i16(..) % 20 == 0 {
+                                            let mut d = 1_i16;
+                                            if owner != &state.controlled {
+                                                d += 10;
+                                            }
+                                            let old_var = self.pop_variant.as_ref().unwrap()
+                                                [i as usize]
+                                                [j as usize];
+                                            self.pop_variant.as_mut().unwrap()[i as usize]
+                                                [j as usize] = (old_var + d) % 10000;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Tile::Mine(owner) => {
+                            // Draw grass.
+                            draw_tile(
+                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6)
+                                    .abs(),
+                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6
+                                    % 3)
+                                .abs(),
+                                pos_x(ui, i),
+                                pos_y(j),
+                            );
+                            // Draw mountain.
+                            draw_tile_2h(
+                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 5)
+                                    .abs(),
+                                5,
+                                pos_x(ui, i),
+                                pos_y(j),
+                            );
+                            // Draw mine/.
+                            if owner.is_neutral() {
+                                draw_tile(5, 5, pos_x(ui, i), pos_y(j));
+                            } else {
+                                // Draw currency sign if controlled by a player.
+                                draw_tile_2h(5, 5, pos_x(ui, i), pos_y(j));
+                            }
+                        }
+                        Tile::Mountain => {
+                            // Draw grass.
+                            draw_tile(
+                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6)
+                                    .abs(),
+                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6
+                                    % 3)
+                                .abs(),
+                                pos_x(ui, i),
+                                pos_y(j),
+                            );
+                            // Draw mountain.
+                            draw_tile_2h(
+                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 5)
+                                    .abs(),
+                                5,
+                                pos_x(ui, i),
+                                pos_y(j),
+                            );
+                        }
+                    }
+                    // Draw flags.
+                    for p in 0..MAX_PLAYERS as u32 {
+                        if state.fgs[p as usize].is_flagged(Pos(i as i32, j as i32)) {
+                            draw_tile_2h(
+                                match Player(p) == state.controlled {
+                                    true => 3,
+                                    false => 4,
+                                },
+                                7 + 3 * p as i16,
+                                pos_x(ui, i),
+                                pos_y(j),
+                            );
+                        }
+                    }
+                }
+            }
+            // Draw cursor.
+            draw_tile_2h(
+                6,
+                5,
+                pos_x(ui, ui.cursor.0 as i16 - 1),
+                pos_y(ui.cursor.1 as i16),
+            );
+            draw_tile_2h(
+                7,
+                5,
+                pos_x(ui, ui.cursor.0 as i16),
+                pos_y(ui.cursor.1 as i16),
+            );
+            draw_tile_2h(
+                8,
+                5,
+                pos_x(ui, ui.cursor.0 as i16 + 1),
+                pos_y(ui.cursor.1 as i16),
+            );
+            // Draw text.
+            let base_y = (pos_y(state.grid.height() as i16) + 1) * TILE_HEIGHT;
+            draw_str("Gold:", Player::NEUTRAL, TILE_WIDTH, base_y);
+            draw_str(
+                &format!("{}", state.countries[state.controlled.0 as usize].gold),
+                state.controlled,
+                TILE_WIDTH + 6 * TYPE_WIDTH,
+                base_y,
+            );
+            draw_str(
+                "Prices: 160 240 320",
+                Player::NEUTRAL,
+                TILE_WIDTH,
+                base_y + TYPE_HEIGHT,
+            );
+            draw_str(
+                "Date:",
+                Player::NEUTRAL,
+                TILE_WIDTH + 54 * TYPE_WIDTH,
+                base_y,
+            );
+            let (y, m, d) = time_to_ymd(state.time);
+            draw_str(
+                &format!("{y}-{m:02}-{d:02}"),
+                state.controlled,
+                TILE_WIDTH + 60 * TYPE_WIDTH,
+                base_y,
+            );
+            draw_str(
+                &format!(
+                    "Speed: {}",
+                    match state.speed {
+                        Speed::Fast => "Fast",
+                        Speed::Faster => "Faster",
+                        Speed::Fastest => "Fastest",
+                        Speed::Normal => "Normal",
+                        Speed::Pause => "Pause",
+                        Speed::Slow => "Slow",
+                        Speed::Slower => "Slower",
+                        Speed::Slowest => "Slowest",
+                    }
+                ),
+                Player::NEUTRAL,
+                TILE_WIDTH + 54 * TYPE_WIDTH,
+                base_y + TYPE_HEIGHT,
+            );
+            draw_str(
+                "Population:",
+                Player::NEUTRAL,
+                TILE_WIDTH + 23 * TYPE_WIDTH,
+                base_y,
+            );
+            for p in 1..MAX_PLAYERS {
+                draw_str(
+                    &format!(
+                        "{:>3}",
+                        state
+                            .grid
+                            .tile(Pos(ui.cursor.0, ui.cursor.1))
+                            .unwrap()
+                            .units()[p]
+                    ),
+                    Player(p as u32),
+                    TILE_WIDTH + (23 + 4 * (p as i16 - 1)) * TYPE_WIDTH,
+                    base_y + TYPE_HEIGHT,
+                );
+            }
+            draw_str(
+                "[Space] flag",
+                Player::NEUTRAL,
+                TILE_WIDTH,
+                base_y + 3 * TYPE_HEIGHT,
+            );
+            draw_str(
+                "[R] or [V] build",
+                Player::NEUTRAL,
+                TILE_WIDTH + 27 * TYPE_WIDTH,
+                base_y + 3 * TYPE_HEIGHT,
+            );
+            draw_str(
+                "[X],[C] mass rmeove",
+                Player::NEUTRAL,
+                TILE_WIDTH,
+                base_y + 4 * TYPE_HEIGHT,
+            );
+            draw_str(
+                "[S] slower [F] faster",
+                Player::NEUTRAL,
+                TILE_WIDTH + 54 * TYPE_WIDTH,
+                base_y + 3 * TYPE_HEIGHT,
+            );
+            draw_str(
+                "[P] pause",
+                Player::NEUTRAL,
+                TILE_WIDTH + 54 * TYPE_WIDTH,
+                base_y + 4 * TYPE_HEIGHT,
+            );
+            // Draw line.
+            draw_line(base_y);
+            unsafe {
+                let _: () = msg_send![self.screen.as_ref().unwrap().0, unlockFocus];
+            }
+        });
+        // Flush.
+        sync_main_thread(|| {
+            app_from_objc::<Self>()
+                .game_window
+                .delegate
+                .as_ref()
+                .unwrap()
+                .game_view
+                .set_needs_display(true);
+        });
+    }
+
+    /// Returns `(screen_size, old_frame)`.
+    fn init_screen(&mut self) -> (CGSize, CGRect) {
+        let screen_size = CGSize::new(
+            i16::max(
+                (self.ui.as_ref().unwrap().xlen + 2) as i16 * TILE_WIDTH,
+                75 * TYPE_WIDTH + TILE_WIDTH,
+            )
+            .into(),
+            ((self.state.as_ref().unwrap().grid.height() as u16 + 3) as i16 * TILE_HEIGHT
+                + 5 * TYPE_HEIGHT)
+                .into(),
+        );
+        let old_frame: CGRect;
+        unsafe {
+            let alloc: id = msg_send![class!(NSImage), alloc];
+            let obj: id = msg_send![alloc, initWithSize:screen_size];
+            self.screen = Some(Image::with(obj));
+            // Resize window to fit `screen`.
+            old_frame = msg_send![self.game_window.objc, frame];
+            let old_content: CGRect =
+                msg_send![self.game_window.objc, contentRectForFrameRect:old_frame];
+            let new_content = CGRect::new(
+                &CGPoint::new(
+                    old_content.origin.x,
+                    old_content.origin.y + old_content.size.height - screen_size.height,
+                ),
+                &screen_size,
+            );
+            let new_frame: CGRect =
+                msg_send![self.game_window.objc, frameRectForContentRect:new_content];
+            sync_main_thread(move || {
+                let this = app_from_objc::<Self>();
+                let _: () =
+                    msg_send![this.game_window.objc, setFrame:new_frame display:YES animate:YES];
+            });
+        }
+        self.game_window
+            .delegate
+            .as_ref()
+            .unwrap()
+            .game_view
+            .set_image(self.screen.as_ref().unwrap());
+        (screen_size, old_frame)
     }
 }
 
