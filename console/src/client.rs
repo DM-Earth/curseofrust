@@ -1,3 +1,5 @@
+#![cfg(feature = "multiplayer")]
+
 use std::{
     cell::RefCell,
     io::Write,
