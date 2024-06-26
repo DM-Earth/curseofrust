@@ -2,7 +2,7 @@ use std::{
     cell::RefCell,
     fmt::Debug,
     marker::PhantomData,
-    net::{IpAddr, SocketAddr, UdpSocket},
+    net::{SocketAddr, UdpSocket},
     time::{Duration, SystemTime},
 };
 
@@ -57,15 +57,18 @@ fn main() -> Result<(), DirectBoxedError> {
         });
     };
 
-    let addr = (
+    let addr: SocketAddr = (
         local_ip_address::local_ip().or_else(|_| local_ip_address::local_ipv6())?,
         port,
-    );
+    )
+        .into();
     let mut cl: Vec<ClientRecord> = vec![];
 
     let socket = UdpSocket::bind(addr)?;
     socket.set_nonblocking(true)?;
     let mut c2s_buf = [0u8; C2S_SIZE];
+
+    println!("[LOBBY] server listening on socket {}", addr);
 
     'lobby: loop {
         if let Ok((nread, peer_addr)) = socket.recv_from(&mut c2s_buf) {
@@ -156,14 +159,17 @@ fn main() -> Result<(), DirectBoxedError> {
                         if let Err(e) =
                             curseofrust_msg::apply_c2s_msg(&mut st, client.player, msg, data)
                         {
-                            eprintln!("[PLAY] error perform action for player{}: {}", client.id, e)
+                            eprintln!(
+                                "[PLAY] error performing action for player{}: {}",
+                                client.id, e
+                            )
                         }
                     }
                     Ok((nread, peer)) => eprintln!(
                         "[PLAY] error recv packet from {}, expected {} bytes, have {}",
                         peer, C2S_SIZE, nread
                     ),
-                    Err(e) => eprintln!("[PLAY] error recv packet: {}", e),
+                    Err(_) => {}
                 }
             };
 
