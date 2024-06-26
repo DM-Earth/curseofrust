@@ -57,7 +57,10 @@ fn main() -> Result<(), DirectBoxedError> {
         });
     };
 
-    let addr = (IpAddr::from([127, 0, 0, 1]), port);
+    let addr = (
+        local_ip_address::local_ip().or_else(|_| local_ip_address::local_ipv6())?,
+        port,
+    );
     let mut cl: Vec<ClientRecord> = vec![];
 
     let socket = UdpSocket::bind(addr)?;
