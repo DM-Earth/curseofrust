@@ -39,9 +39,19 @@ fn main() -> Result<(), DirectBoxedError> {
         curseofrust::state::MultiplayerOpts::Server { .. } => Err(DirectBoxedError {
             inner: <Box<dyn std::error::Error>>::from("use dedicated server"),
         }),
+        #[cfg(feature = "multiplayer")]
         curseofrust::state::MultiplayerOpts::Client { server, port } => {
-            client::run(&mut st, server, port)
+            let res = client::run(&mut st, server, port);
+            execute!(st.out, terminal::Clear(terminal::ClearType::All))?;
+            terminal::disable_raw_mode()?;
+            execute!(st.out, terminal::LeaveAlternateScreen, cursor::Show)?;
+            res
         }
+        #[cfg(not(feature = "multiplayer"))]
+        curseofrust::state::MultiplayerOpts::Client { .. } => Err(DirectBoxedError {
+            inner: <Box<dyn std::error::Error>>::from("client feature not enabled"),
+        }),
+
         curseofrust::state::MultiplayerOpts::None => run(&mut st),
     }
 }

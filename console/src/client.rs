@@ -1,3 +1,5 @@
+#![cfg(feature = "multiplayer")]
+
 use std::{
     cell::RefCell,
     io::Write,
@@ -53,7 +55,6 @@ pub(crate) fn run<W: Write>(
             'game: loop {
                 let timer = async_io::Timer::after(crate::DURATION);
 
-                time += 1;
                 if time >= 1600 {
                     time = 0;
                 }
@@ -62,7 +63,12 @@ pub(crate) fn run<W: Write>(
                     const ALIVE_PACKET: [u8; C2S_SIZE] =
                         [curseofrust_msg::client_msg::IS_ALIVE, 0, 0, 0];
                     executor.spawn(socket.send(&ALIVE_PACKET)).detach();
+                    if !init {
+                        println!("pinging socket {} using {}", server, local)
+                    }
                 }
+
+                time += 1;
 
                 let fetch_st = async {
                     let nread = socket.recv(&mut s2c_buf).await?;
@@ -79,7 +85,10 @@ pub(crate) fn run<W: Write>(
                         .expect("the buffer should longer than one byte");
                     let data: S2CData = *bytemuck::from_bytes(data);
                     if msg == curseofrust_msg::server_msg::STATE {
-                        curseofrust_msg::apply_s2c_msg(&mut st.borrow_mut().s, data)?;
+                        let mut st_guard = st.borrow_mut();
+                        let st = &mut ***st_guard;
+                        curseofrust_msg::apply_s2c_msg(&mut st.s, data)?;
+                        crate::output::draw_grid(st)?;
                         Ok(true)
                     } else {
                         Result::<bool, DirectBoxedError>::Ok(false)
@@ -233,9 +242,6 @@ pub(crate) fn run<W: Write>(
             Result::<(), DirectBoxedError>::Ok(())
         }))?;
     }
-
-    terminal::disable_raw_mode()?;
-    execute!(st.out, terminal::LeaveAlternateScreen, cursor::Show)?;
 
     Ok(())
 }

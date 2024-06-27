@@ -2,7 +2,7 @@ use std::{
     cell::RefCell,
     fmt::Debug,
     marker::PhantomData,
-    net::{IpAddr, SocketAddr, UdpSocket},
+    net::{SocketAddr, UdpSocket},
     time::{Duration, SystemTime},
 };
 
@@ -28,20 +28,6 @@ impl<T> Extend<async_executor::Task<T>> for TaskDetacher<T> {
     }
 }
 
-struct SocketAddrs<T>(T);
-
-impl<T> std::net::ToSocketAddrs for SocketAddrs<T>
-where
-    T: IntoIterator<Item = SocketAddr> + Clone,
-{
-    type Iter = <T as IntoIterator>::IntoIter;
-
-    #[inline(always)]
-    fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
-        Ok(self.0.clone().into_iter())
-    }
-}
-
 fn main() -> Result<(), DirectBoxedError> {
     fastrand::seed(
         SystemTime::UNIX_EPOCH
@@ -57,12 +43,18 @@ fn main() -> Result<(), DirectBoxedError> {
         });
     };
 
-    let addr = (IpAddr::from([127, 0, 0, 1]), port);
+    let addr: SocketAddr = (
+        local_ip_address::local_ip().or_else(|_| local_ip_address::local_ipv6())?,
+        port,
+    )
+        .into();
     let mut cl: Vec<ClientRecord> = vec![];
 
     let socket = UdpSocket::bind(addr)?;
     socket.set_nonblocking(true)?;
     let mut c2s_buf = [0u8; C2S_SIZE];
+
+    println!("[LOBBY] server listening on socket {}", addr);
 
     'lobby: loop {
         if let Ok((nread, peer_addr)) = socket.recv_from(&mut c2s_buf) {
@@ -92,7 +84,6 @@ fn main() -> Result<(), DirectBoxedError> {
     }
 
     let st = RefCell::new(State::new(b_opt)?);
-    socket.connect(SocketAddrs(cl.iter().map(|client| client.addr)))?;
     let socket = Async::new_nonblocking(socket)?;
     let mut time = 0i32;
     let executor = LocalExecutor::new();
@@ -153,14 +144,17 @@ fn main() -> Result<(), DirectBoxedError> {
                         if let Err(e) =
                             curseofrust_msg::apply_c2s_msg(&mut st, client.player, msg, data)
                         {
-                            eprintln!("[PLAY] error perform action for player{}: {}", client.id, e)
+                            eprintln!(
+                                "[PLAY] error performing action for player{}: {}",
+                                client.id, e
+                            )
                         }
                     }
                     Ok((nread, peer)) => eprintln!(
                         "[PLAY] error recv packet from {}, expected {} bytes, have {}",
                         peer, C2S_SIZE, nread
                     ),
-                    Err(e) => eprintln!("[PLAY] error recv packet: {}", e),
+                    Err(_) => {}
                 }
             };
 
