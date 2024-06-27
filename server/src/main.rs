@@ -13,6 +13,7 @@ use curseofrust::{
     Player, Speed,
 };
 use curseofrust_msg::{bytemuck, C2SData, ClientRecord, S2CData, C2S_SIZE, S2C_SIZE};
+use socket2::Socket;
 
 const DEFAULT_NAME: &str = include_str!("../jim.txt");
 const DURATION: Duration = Duration::from_millis(10);
@@ -50,9 +51,18 @@ fn main() -> Result<(), DirectBoxedError> {
         .into();
     let mut cl: Vec<ClientRecord> = vec![];
 
-    let socket = UdpSocket::bind(addr)?;
-    socket.set_nonblocking(true)?;
-    let socket = Async::new_nonblocking(socket)?;
+    let socket = Socket::new(
+        match addr {
+            SocketAddr::V4(_) => socket2::Domain::IPV4,
+            SocketAddr::V6(_) => socket2::Domain::IPV6,
+        },
+        socket2::Type::DGRAM,
+        Some(socket2::Protocol::UDP),
+    )?;
+    socket.bind(&addr.into())?;
+    socket.set_reuse_address(true)?;
+    let socket: UdpSocket = socket.into();
+    let socket = Async::new(socket)?;
     let mut c2s_buf = [0u8; C2S_SIZE];
 
     println!("[LOBBY] server listening on socket {}", addr);
