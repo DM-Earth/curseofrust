@@ -59,8 +59,9 @@ fn main() -> Result<(), DirectBoxedError> {
         socket2::Type::DGRAM,
         Some(socket2::Protocol::UDP),
     )?;
-    socket.bind(&addr.into())?;
     socket.set_reuse_address(true)?;
+    socket.bind(&addr.into())?;
+
     let socket: UdpSocket = socket.into();
     let socket = Async::new(socket)?;
     let mut c2s_buf = [0u8; C2S_SIZE];
