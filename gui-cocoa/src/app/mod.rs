@@ -320,8 +320,12 @@ impl CorApp {
                             Some(Color::SystemOrange),
                         );
                     }
-                    MultiplayerOpts::Client { server, port } => {
-                        if !common_init() {
+                    MultiplayerOpts::Client { .. } => {
+                        self.game_window.delegate.as_ref().unwrap().display_err(
+                            "UDP multiplayer client is not usable, please use the console version.",
+                            Some(Color::SystemOrange),
+                        );
+                        /* if !common_init() {
                             return;
                         }
                         if let Err((msg, color)) = self.run_client(server, port) {
@@ -330,7 +334,7 @@ impl CorApp {
                                 .as_ref()
                                 .unwrap()
                                 .display_err(&msg, color);
-                        }
+                        } */
                     }
                 }
             }
@@ -391,7 +395,7 @@ impl CorApp {
     }
 
     /// Start as a multiplayer client.
-    fn run_client(&mut self, server: SocketAddr, port: u16) -> Result<(), (String, Option<Color>)> {
+    fn _run_client(&mut self, server: SocketAddr, port: u16) -> Result<(), (String, Option<Color>)> {
         let mut prev_time = Instant::now();
         let mut k: u16 = 0;
         let local_addr = SocketAddr::new(
