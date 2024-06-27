@@ -288,8 +288,10 @@ dependencies = [
  "cacao",
  "curseofrust",
  "curseofrust-cli-parser",
+ "curseofrust-msg",
  "dispatch",
  "fastrand",
+ "local-ip-address",
 ]
 
 [[package]]
