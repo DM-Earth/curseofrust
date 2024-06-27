@@ -83,9 +83,9 @@ pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Erro
             macro_rules! cursor {
                 () => {
                     let l_sym = if pos == st.ui.cursor {
-                        '('
+                        '['
                     } else if Pos(x as i32 - 1, y as i32) == st.ui.cursor {
-                        ')'
+                        ']'
                     } else {
                         ' '
                     };
