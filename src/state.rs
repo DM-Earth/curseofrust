@@ -166,10 +166,10 @@ impl State {
             .map(|i| {
                 King::new(
                     Player(i as u32 + 1),
-                    match i + b_opt.clients {
+                    match i as isize - b_opt.clients as isize {
                         1 => Strategy::Opportunist,
                         2 => Strategy::OneGreedy,
-                        3 => Strategy::None,
+                        3 => Strategy::Midas,
                         4 => Strategy::AggrGreedy,
                         5 => Strategy::Noble,
                         6 => Strategy::PersistentGreedy,
