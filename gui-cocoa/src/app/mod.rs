@@ -899,7 +899,7 @@ impl CorApp {
                 base_y + 3 * TYPE_HEIGHT,
             );
             draw_str(
-                "[X],[C] mass rmeove",
+                "[X],[C] mass remove",
                 Player::NEUTRAL,
                 TILE_WIDTH,
                 base_y + 4 * TYPE_HEIGHT,
