@@ -8,3 +8,6 @@ edition = "2021"
 [dependencies]
 curseofrust = { path = ".." }
 clap_lex = "0.7.1"
+
+[features]
+net-proto = []

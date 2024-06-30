@@ -1,13 +1,12 @@
 #![cfg(feature = "multiplayer")]
 
 use std::{
-    cell::RefCell,
+    cell::{RefCell, UnsafeCell},
     io::Write,
-    net::{SocketAddr, UdpSocket},
+    net::SocketAddr,
     ops::ControlFlow,
 };
 
-use async_io::Async;
 use crossterm::{
     cursor,
     event::{KeyCode, KeyEvent},
@@ -15,6 +14,7 @@ use crossterm::{
 };
 use curseofrust::{grid::Tile, Speed};
 use curseofrust_msg::{bytemuck, C2SData, S2CData, C2S_SIZE, S2C_SIZE};
+use curseofrust_net_foundation::{Handle, Protocol};
 use futures_lite::StreamExt as _;
 use local_ip_address::{local_ip, local_ipv6};
 
@@ -24,6 +24,7 @@ pub(crate) fn run<W: Write>(
     mut st: &mut State<W>,
     server: SocketAddr,
     port: u16,
+    protocol: curseofrust_cli_parser::Protocol,
 ) -> Result<(), DirectBoxedError> {
     let local: SocketAddr = (
         match server {
@@ -34,10 +35,20 @@ pub(crate) fn run<W: Write>(
     )
         .into();
 
-    let socket = UdpSocket::bind(local)?;
-    socket.connect(server)?;
-    socket.set_nonblocking(true)?;
-    let socket = Async::new(socket)?;
+    let protocol = match protocol {
+        curseofrust_cli_parser::Protocol::Tcp => Protocol::Tcp,
+        curseofrust_cli_parser::Protocol::Udp => Protocol::Udp,
+        #[cfg(feature = "ws")]
+        curseofrust_cli_parser::Protocol::WebSocket => Protocol::WebSocket,
+        _ => {
+            return Err(DirectBoxedError {
+                inner: "given protocol is not supported in this build".into(),
+            })
+        }
+    };
+
+    let handle = Handle::bind(local, protocol)?;
+    let socket = UnsafeCell::new(futures_lite::future::block_on(handle.connect(server))?);
 
     let executor = async_executor::LocalExecutor::new();
     let mut time = 0i32;
@@ -62,7 +73,10 @@ pub(crate) fn run<W: Write>(
                 if time % 50 == 0 {
                     const ALIVE_PACKET: [u8; C2S_SIZE] =
                         [curseofrust_msg::client_msg::IS_ALIVE, 0, 0, 0];
-                    executor.spawn(socket.send(&ALIVE_PACKET)).detach();
+
+                    unsafe {
+                        executor.spawn((*socket.get()).send(&ALIVE_PACKET)).detach();
+                    }
                     if !init {
                         println!("pinging socket {} using {}", server, local)
                     }
@@ -71,7 +85,7 @@ pub(crate) fn run<W: Write>(
                 time += 1;
 
                 let fetch_st = async {
-                    let nread = socket.recv(&mut s2c_buf).await?;
+                    let nread = unsafe { (*socket.get()).recv(&mut s2c_buf).await? };
                     if nread < S2C_SIZE {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::UnexpectedEof,
@@ -119,11 +133,14 @@ pub(crate) fn run<W: Write>(
                                                 *msg = curseofrust_msg::client_msg::$msg;
                                                 d.copy_from_slice(bytemuck::bytes_of(&data));
                                                 let socket = &socket;
-                                                executor
-                                                    .spawn(async move {
-                                                        let _ = socket.send(&buf).await;
-                                                    })
-                                                    .detach();
+                                                unsafe {
+                                                    executor
+                                                        .spawn(async move {
+                                                            let _ =
+                                                                (*socket.get()).send(&buf).await;
+                                                        })
+                                                        .detach();
+                                                }
                                             }};
                                             ($msg:ident) => {
                                                 msg_send!($msg, 0)

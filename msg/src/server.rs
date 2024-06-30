@@ -9,6 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
+#[deprecated = "use self-defined client struct instead"]
 pub struct ClientRecord {
     /// Player of the client.
     pub player: Player,
