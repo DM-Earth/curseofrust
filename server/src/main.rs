@@ -1,12 +1,11 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::{Cell, RefCell, UnsafeCell},
     fmt::Debug,
     net::SocketAddr,
     time::{Duration, SystemTime},
 };
 
 use async_executor::LocalExecutor;
-use async_lock::Mutex;
 use curseofrust::{
     state::{MultiplayerOpts, State},
     Player, Speed,
@@ -22,7 +21,7 @@ struct Client<'sock> {
     id: u32,
     addr: SocketAddr,
     pl: Player,
-    socket: Mutex<Connection<'sock>>,
+    socket: UnsafeCell<Connection<'sock>>,
     reads: Cell<usize>,
 }
 
@@ -91,7 +90,7 @@ fn main() -> Result<(), DirectBoxedError> {
                             addr: peer,
                             pl: Player(id + 1),
                             id,
-                            socket: Mutex::new(connection),
+                            socket: UnsafeCell::new(connection),
                             reads: Cell::new(0),
                         });
 
@@ -142,8 +141,18 @@ fn main() -> Result<(), DirectBoxedError> {
                         let socket = &client.socket;
                         executor
                             .spawn(async move {
-                                let mut socket = socket.lock().await;
-                                let result = socket.send(&buf).await;
+                                let ptr = socket.get();
+                                /*
+                                futures_lite::future::poll_fn(|cx| unsafe {
+                                    if (*ptr).poll_writable(cx) {
+                                        std::task::Poll::Ready(())
+                                    } else {
+                                        std::task::Poll::Pending
+                                    }
+                                })
+                                .await;
+                                */
+                                let result = unsafe { (*ptr).send(&buf).await };
                                 if let Err(e) = result {
                                     eprintln!(
                                         "[PLAY] error sending packet to client{}@{}: {}",
@@ -158,7 +167,7 @@ fn main() -> Result<(), DirectBoxedError> {
 
             for client in cl.iter() {
                 let reads = client.reads.get();
-                if reads < 3 {
+                if reads < 2 {
                     client.reads.set(reads + 1);
                     executor.spawn(recv_fut(client, &st)).detach();
                 }
@@ -172,16 +181,18 @@ fn main() -> Result<(), DirectBoxedError> {
 
 async fn recv_fut(cl: &Client<'_>, st: &RefCell<State>) {
     let mut buf = [0u8; C2S_SIZE];
-    futures_lite::future::poll_fn(|cx| {
-        if cl.socket.try_lock().is_some_and(|s| s.poll_readable(cx)) {
-            std::task::Poll::Ready(())
-        } else {
-            std::task::Poll::Pending
-        }
-    })
-    .await;
-    let mut socket = cl.socket.lock().await;
-    match socket.recv(&mut buf).await {
+    let sptr = cl.socket.get();
+    /*
+        futures_lite::future::poll_fn(|cx| unsafe {
+            if (*sptr).poll_readable(cx) {
+                std::task::Poll::Ready(())
+            } else {
+                std::task::Poll::Pending
+            }
+        })
+        .await;
+    */
+    match unsafe { (*sptr).recv(&mut buf).await } {
         Ok(C2S_SIZE) => {
             let (&msg, od) = buf
                 .split_first()

@@ -377,7 +377,6 @@ version = "0.1.0"
 dependencies = [
  "async-executor",
  "async-io",
- "async-lock",
  "curseofrust",
  "curseofrust-cli-parser",
  "curseofrust-msg",

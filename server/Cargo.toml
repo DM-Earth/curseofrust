@@ -13,7 +13,6 @@ curseofrust-net-foundation = { path = "../net-foundation" }
 futures-lite = "2.3.0"
 async-io = "2.3"
 async-executor = "1.12"
-async-lock = "3.4"
 fastrand = "2.1.0"
 local-ip-address = "0.6"
 

@@ -40,14 +40,6 @@ enum HandleInner {
 }
 
 macro_rules! call {
-    (const: $this:expr, $thist:ident => $fun:ident($($i:expr),*$(,)?)) => {
-        match $this {
-            $thist::Tcp(ref back) => back.$fun($($i),*),
-            $thist::Udp(ref back) => back.$fun($($i),*),
-            #[cfg(feature = "ws")]
-            $thist::WebSocket(ref back) => back.$fun($($i),*).map_err(err_ws2io),
-        }
-    };
     ($this:expr, $thist:ident => $fun:ident($($i:expr),*$(,)?).await) => {
         match $this {
             $thist::Tcp(ref mut back) => back.$fun($($i),*).await,
@@ -190,10 +182,27 @@ impl Connection<'_> {
 
     /// Poll the connection for readability.
     pub fn poll_readable(&self, cx: &mut std::task::Context<'_>) -> bool {
-        call!(const: self.0, ConnectionInner => poll_readable(cx))
+        match &self.0 {
+            ConnectionInner::Tcp(back) => back.poll_readable(cx),
+            ConnectionInner::Udp(back) => back.poll_readable(cx),
+            #[cfg(feature = "ws")]
+            ConnectionInner::WebSocket(back) => back.poll_readable(cx),
+        }
+    }
+
+    /// Poll the connection for writability.
+    #[inline(always)]
+    pub fn poll_writable(&self, cx: &mut std::task::Context<'_>) -> bool {
+        match &self.0 {
+            ConnectionInner::Tcp(back) => back.poll_writable(cx),
+            ConnectionInner::Udp(back) => back.poll_writable(cx),
+            #[cfg(feature = "ws")]
+            ConnectionInner::WebSocket(back) => back.poll_writable(cx),
+        }
     }
 
     /// Close the connection.
+    #[inline(always)]
     pub async fn close(self) -> Result<(), std::io::Error> {
         match self.0 {
             ConnectionInner::Tcp(back) => back.close().await,
