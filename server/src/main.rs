@@ -142,13 +142,7 @@ fn main() -> Result<(), DirectBoxedError> {
                         executor
                             .spawn(async move {
                                 let ptr = socket.get();
-                                let result = unsafe { (*ptr).send(&buf).await };
-                                if let Err(e) = result {
-                                    eprintln!(
-                                        "[PLAY] error sending packet to client{}@{}: {}",
-                                        client.id, client.addr, e
-                                    );
-                                }
+                                let _ = unsafe { (*ptr).send(&buf).await };
                             })
                             .detach()
                     }
