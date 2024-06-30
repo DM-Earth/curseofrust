@@ -40,6 +40,14 @@ enum HandleInner {
 }
 
 macro_rules! call {
+    (const: $this:expr, $thist:ident => $fun:ident($($i:expr),*$(,)?)) => {
+        match $this {
+            $thist::Tcp(ref back) => back.$fun($($i),*),
+            $thist::Udp(ref back) => back.$fun($($i),*),
+            #[cfg(feature = "ws")]
+            $thist::WebSocket(ref back) => back.$fun($($i),*).map_err(err_ws2io),
+        }
+    };
     ($this:expr, $thist:ident => $fun:ident($($i:expr),*$(,)?).await) => {
         match $this {
             $thist::Tcp(ref mut back) => back.$fun($($i),*).await,
@@ -178,6 +186,11 @@ impl Connection<'_> {
     /// Receive data.
     pub async fn recv(&mut self, data: &mut [u8]) -> Result<usize, std::io::Error> {
         call!(self.0, ConnectionInner => read(data).await)
+    }
+
+    /// Poll the connection for readability.
+    pub fn poll_readable(&self, cx: &mut std::task::Context<'_>) -> bool {
+        call!(const: self.0, ConnectionInner => poll_readable(cx))
     }
 
     /// Close the connection.

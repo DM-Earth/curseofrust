@@ -23,6 +23,7 @@ pub fn parse(
 
 #[cfg(feature = "net-proto")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum Protocol {
     Tcp,
     #[default]

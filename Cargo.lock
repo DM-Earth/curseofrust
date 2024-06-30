@@ -182,9 +182,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.102"
+version = "1.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "779e6b7d17797c0b42023d417228c02889300190e700cb074c3438d9c541d332"
+checksum = "2755ff20a1d93490d26ba33a6f092a38a508398a5320df5d4b3014fcccce9410"
 
 [[package]]
 name = "cfg-if"
@@ -377,13 +377,14 @@ version = "0.1.0"
 dependencies = [
  "async-executor",
  "async-io",
+ "async-lock",
  "curseofrust",
  "curseofrust-cli-parser",
  "curseofrust-msg",
+ "curseofrust-net-foundation",
  "fastrand",
  "futures-lite",
  "local-ip-address",
- "socket2",
 ]
 
 [[package]]
@@ -1126,12 +1127,12 @@ dependencies = [
 [[package]]
 name = "unisock"
 version = "0.1.0"
-source = "git+https://codeberg.org/DM-Earth/unisock.git?branch=main#74bf7641c9a4e7a8ef80b25f7341e63d2e929526"
+source = "git+https://codeberg.org/DM-Earth/unisock.git?branch=main#6d6ed05de4d6c270d713f8e51c34732a92a1e51b"
 
 [[package]]
 name = "unisock-smol"
 version = "0.1.0"
-source = "git+https://codeberg.org/DM-Earth/unisock.git?branch=main#74bf7641c9a4e7a8ef80b25f7341e63d2e929526"
+source = "git+https://codeberg.org/DM-Earth/unisock.git?branch=main#6d6ed05de4d6c270d713f8e51c34732a92a1e51b"
 dependencies = [
  "ahash",
  "async-io",
@@ -1144,7 +1145,7 @@ dependencies = [
 [[package]]
 name = "unisock-smol-tungstenite"
 version = "0.1.0"
-source = "git+https://codeberg.org/DM-Earth/unisock.git?branch=main#74bf7641c9a4e7a8ef80b25f7341e63d2e929526"
+source = "git+https://codeberg.org/DM-Earth/unisock.git?branch=main#6d6ed05de4d6c270d713f8e51c34732a92a1e51b"
 dependencies = [
  "async-io",
  "async-tungstenite",
