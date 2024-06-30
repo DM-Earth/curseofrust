@@ -10,7 +10,7 @@ fastrand = "2.1.0"
 
 [workspace]
 resolver = "2"
-members = ["gui-cocoa", "console", "cli", "msg", "server"]
+members = ["gui-cocoa", "console", "cli", "msg", "server", "net-foundation"]
 
 [profile.release]
 panic = "abort"
