@@ -183,11 +183,11 @@ async fn recv_fut(cl: &Client<'_>, st: &RefCell<State>) {
                 eprintln!("[PLAY] error performing action for player{}: {}", cl.id, e)
             }
         }
+        Err(_) | Ok(0) => {}
         Ok(nread) => eprintln!(
             "[PLAY] error recv packet from client{}, expected {} bytes, have {}",
             cl.id, C2S_SIZE, nread
         ),
-        Err(_) => {}
     }
     cl.reads.set(cl.reads.get() - 1);
 }
