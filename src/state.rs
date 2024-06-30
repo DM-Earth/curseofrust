@@ -55,6 +55,7 @@ impl Timeline {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct BasicOpts {
     pub keep_random: bool,
     pub difficulty: Difficulty,
