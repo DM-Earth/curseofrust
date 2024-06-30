@@ -335,6 +335,7 @@ dependencies = [
  "curseofrust",
  "curseofrust-cli-parser",
  "curseofrust-msg",
+ "curseofrust-net-foundation",
  "fastrand",
  "futures-lite",
  "local-ip-address",

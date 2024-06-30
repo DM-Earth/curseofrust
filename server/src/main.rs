@@ -142,16 +142,6 @@ fn main() -> Result<(), DirectBoxedError> {
                         executor
                             .spawn(async move {
                                 let ptr = socket.get();
-                                /*
-                                futures_lite::future::poll_fn(|cx| unsafe {
-                                    if (*ptr).poll_writable(cx) {
-                                        std::task::Poll::Ready(())
-                                    } else {
-                                        std::task::Poll::Pending
-                                    }
-                                })
-                                .await;
-                                */
                                 let result = unsafe { (*ptr).send(&buf).await };
                                 if let Err(e) = result {
                                     eprintln!(
@@ -182,16 +172,6 @@ fn main() -> Result<(), DirectBoxedError> {
 async fn recv_fut(cl: &Client<'_>, st: &RefCell<State>) {
     let mut buf = [0u8; C2S_SIZE];
     let sptr = cl.socket.get();
-    /*
-        futures_lite::future::poll_fn(|cx| unsafe {
-            if (*sptr).poll_readable(cx) {
-                std::task::Poll::Ready(())
-            } else {
-                std::task::Poll::Pending
-            }
-        })
-        .await;
-    */
     match unsafe { (*sptr).recv(&mut buf).await } {
         Ok(C2S_SIZE) => {
             let (&msg, od) = buf

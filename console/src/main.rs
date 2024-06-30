@@ -11,6 +11,7 @@ use crossterm::{
     execute, queue, terminal,
 };
 use curseofrust::{grid::Tile, Speed, FLAG_POWER};
+use curseofrust_cli_parser::Options;
 use futures_lite::StreamExt;
 
 mod client;
@@ -26,7 +27,17 @@ fn main() -> Result<(), DirectBoxedError> {
             .as_secs(),
     );
 
-    let (b_opt, m_opt) = curseofrust_cli_parser::parse(std::env::args_os())?;
+    let Options {
+        basic: b_opt,
+        multiplayer: m_opt,
+        exit,
+        protocol,
+        ..
+    } = curseofrust_cli_parser::parse_to_options(std::env::args_os())?;
+    if exit {
+        return Ok(());
+    }
+
     let state = curseofrust::state::State::new(b_opt)?;
     let stdout = std::io::stdout();
     let mut st = State {
@@ -41,7 +52,7 @@ fn main() -> Result<(), DirectBoxedError> {
         }),
         #[cfg(feature = "multiplayer")]
         curseofrust::state::MultiplayerOpts::Client { server, port } => {
-            let res = client::run(&mut st, server, port);
+            let res = client::run(&mut st, server, port, protocol);
             execute!(st.out, terminal::Clear(terminal::ClearType::All))?;
             terminal::disable_raw_mode()?;
             execute!(st.out, terminal::LeaveAlternateScreen, cursor::Show)?;
