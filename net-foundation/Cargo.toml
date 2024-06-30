@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 unisock = { git = "https://codeberg.org/DM-Earth/unisock.git", branch = "main", package = "unisock" }
 unisock-smol = { git = "https://codeberg.org/DM-Earth/unisock.git", branch = "main", package = "unisock-smol" }
-unisock-smol-tungstenite = { git = "https://codeberg.org/DM-Earth/unisock.git", branch = "main", package = "unisock-smol-tungstenite" }
+unisock-smol-tungstenite = { git = "https://codeberg.org/DM-Earth/unisock.git", branch = "main", package = "unisock-smol-tungstenite", optional = true }
 
 [features]
+ws = ["dep:unisock-smol-tungstenite"]

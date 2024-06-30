@@ -8,6 +8,7 @@ use unisock::*;
 
 mod util;
 
+#[allow(unused_imports)]
 use util::*;
 
 /// The protocol of the socket.
@@ -22,6 +23,7 @@ pub enum Protocol {
     #[default]
     Udp,
     /// WebSocket.
+    #[cfg(feature = "ws")]
     WebSocket,
 }
 
@@ -33,6 +35,7 @@ pub struct Handle(HandleInner);
 enum HandleInner {
     Tcp(unisock_smol::Tcp),
     Udp(unisock_smol::UdpSingle),
+    #[cfg(feature = "ws")]
     WebSocket(unisock_smol_tungstenite::WebSocket),
 }
 
@@ -41,6 +44,7 @@ macro_rules! call {
         match $this {
             $thist::Tcp(ref mut back) => back.$fun($($i),*).await,
             $thist::Udp(ref mut back) => back.$fun($($i),*).await,
+            #[cfg(feature = "ws")]
             $thist::WebSocket(ref mut back) => back.$fun($($i),*).await.map_err(err_ws2io),
         }
     };
@@ -63,6 +67,7 @@ impl Handle {
                     Ok(back) => return Ok(Self(HandleInner::Udp(back))),
                     Err(e) => err = Some(e),
                 },
+                #[cfg(feature = "ws")]
                 Protocol::WebSocket => match unisock_smol_tungstenite::WebSocket::bind(addr) {
                     Ok(back) => return Ok(Self(HandleInner::WebSocket(back))),
                     Err(e) => err = Some(err_ws2io(e)),
@@ -80,6 +85,7 @@ impl Handle {
         match &self.0 {
             HandleInner::Tcp(back) => back.listen().map(|l| Listener(ListenerInner::Tcp(l))),
             HandleInner::Udp(back) => Ok(Listener(ListenerInner::Udp(back))),
+            #[cfg(feature = "ws")]
             HandleInner::WebSocket(back) => back
                 .listen()
                 .map(|l| Listener(ListenerInner::WebSocket(l)))
@@ -103,6 +109,7 @@ impl Handle {
                     Ok(conn) => return Ok(Connection(ConnectionInner::Udp(conn))),
                     Err(e) => err = Some(e),
                 },
+                #[cfg(feature = "ws")]
                 HandleInner::WebSocket(back) => match back.connect(addr).await {
                     Ok(conn) => return Ok(Connection(ConnectionInner::WebSocket(conn))),
                     Err(e) => err = Some(err_ws2io(e)),
@@ -124,6 +131,7 @@ pub struct Listener<'a>(ListenerInner<'a>);
 enum ListenerInner<'a> {
     Tcp(unisock_smol::tcp::Listener),
     Udp(&'a unisock_smol::UdpSingle),
+    #[cfg(feature = "ws")]
     WebSocket(unisock_smol_tungstenite::Listener),
 }
 
@@ -139,6 +147,7 @@ impl Listener<'_> {
                 .accept()
                 .await
                 .map(|(c, a)| (Connection(ConnectionInner::Udp(c)), a)),
+            #[cfg(feature = "ws")]
             ListenerInner::WebSocket(back) => back
                 .accept()
                 .await
@@ -156,6 +165,7 @@ pub struct Connection<'a>(ConnectionInner<'a>);
 enum ConnectionInner<'a> {
     Tcp(unisock_smol::tcp::Connection),
     Udp(unisock_smol::udp_single_sock::Connection<'a>),
+    #[cfg(feature = "ws")]
     WebSocket(unisock_smol_tungstenite::Connection),
 }
 
@@ -175,6 +185,7 @@ impl Connection<'_> {
         match self.0 {
             ConnectionInner::Tcp(back) => back.close().await,
             ConnectionInner::Udp(back) => back.close().await,
+            #[cfg(feature = "ws")]
             ConnectionInner::WebSocket(back) => back.close().await.map_err(err_ws2io),
         }
     }
