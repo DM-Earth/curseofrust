@@ -35,7 +35,7 @@ use cacao::{
 use cacao::{layout::Layout, utils::sync_main_thread};
 use curseofrust::grid::{HabitLand, Tile};
 use curseofrust::{
-    state::{BasicOpts, MultiplayerOpts, State, UI},
+    state::{MultiplayerOpts, State, UI},
     Speed, FLAG_POWER,
 };
 use curseofrust::{Player, Pos, MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH};
@@ -121,7 +121,7 @@ impl CorApp {
             ),
             _listener: Event::local_monitor(cacao::appkit::EventMask::KeyDown, |e| {
                 let app = app_from_objc::<Self>();
-                if app.run {
+                if app.run && app.game_window.is_key() {
                     let mut ret: Option<Event> = None;
                     app.queue.exec_sync(|| {
                         ret = app_from_objc::<Self>().process_input(e);
@@ -289,9 +289,11 @@ impl CorApp {
         });
         fastrand::seed(UNIX_EPOCH.elapsed().unwrap_or_default().as_secs());
         match self.load_config() {
-            Ok((op, mop)) => {
+            Ok(cli_parser::Options {
+                basic, multiplayer, ..
+            }) => {
                 let common_init = || {
-                    match State::new(op) {
+                    match State::new(basic) {
                         Ok(state) => self.state = Some(state),
                         Err(err) => {
                             self.game_window
@@ -307,7 +309,7 @@ impl CorApp {
                     self.ui = Some(UI::new(self.state.as_ref().unwrap()));
                     true
                 };
-                match mop {
+                match multiplayer {
                     MultiplayerOpts::None => {
                         if !common_init() {
                             return;
@@ -395,7 +397,11 @@ impl CorApp {
     }
 
     /// Start as a multiplayer client.
-    fn _run_client(&mut self, server: SocketAddr, port: u16) -> Result<(), (String, Option<Color>)> {
+    fn _run_client(
+        &mut self,
+        server: SocketAddr,
+        port: u16,
+    ) -> Result<(), (String, Option<Color>)> {
         let mut prev_time = Instant::now();
         let mut k: u16 = 0;
         let local_addr = SocketAddr::new(
@@ -478,7 +484,7 @@ impl CorApp {
         Ok(())
     }
 
-    pub fn load_config(&self) -> Result<(BasicOpts, MultiplayerOpts), cli_parser::Error> {
+    pub fn load_config(&self) -> Result<cli_parser::Options, cli_parser::Error> {
         let mut config_str = self
             .text_config_window
             .delegate
@@ -493,7 +499,7 @@ impl CorApp {
             config_str = "curseofrust ".to_owned() + &config_str;
         }
         config_str = config_str.replace("-v", "").replace("-h", "");
-        cli_parser::parse(config_str.split_whitespace())
+        cli_parser::parse_to_options(config_str.split_whitespace())
     }
 
     fn process_input(&mut self, event: Event) -> Option<Event> {
