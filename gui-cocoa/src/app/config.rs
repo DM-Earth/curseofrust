@@ -8,6 +8,9 @@ use cacao::{
     objc::{msg_send, sel, sel_impl},
 };
 
+#[cfg(feature = "high-sierra")]
+use cacao::listview::ListView;
+
 #[cfg(not(feature = "high-sierra"))]
 use {crate::app::set_font, cacao::text::Label};
 
