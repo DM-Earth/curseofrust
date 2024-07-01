@@ -12,8 +12,8 @@ use crate::{
     util::{app_from_objc, OnceAssign},
 };
 use build_time::build_time_local;
-use cacao::foundation::BOOL;
-use cacao::objc::rc::autoreleasepool;
+use cacao::foundation::{AutoReleasePool, NSString};
+use cacao::objc::runtime::Bool;
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -26,9 +26,9 @@ use cacao::{
         geometry::{CGPoint, CGRect, CGSize},
     },
     events::EventModifierFlag,
-    foundation::{id, nil, NSString, NO, YES},
+    foundation::{id, nil},
     image::{Image, ImageView},
-    objc::{class, msg_send, sel, sel_impl},
+    objc::{class, msg_send},
     pasteboard::Pasteboard,
     text::Label,
 };
@@ -168,7 +168,7 @@ impl CorApp {
             });
         // Disable `Copy Preferences` menu as it's not usable.
         if let MenuItem::Custom(obj) = copy_config {
-            let _: () = unsafe { msg_send![obj, setEnabled:cacao::foundation::NO] };
+            let _: () = unsafe { msg_send![&obj, setEnabled:Bool::NO] };
             copy_config = MenuItem::Custom(obj);
         }
         let restore_default_config = MenuItem::new("Restore Default Preferences").action(|| {
@@ -224,24 +224,26 @@ impl CorApp {
         );
         let help_menu = Menu::new("Help", vec![help]);
         // Required for disabling menu items.
-        let _: () = unsafe { msg_send![file_menu.0, setAutoenablesItems:cacao::foundation::NO] };
+        let _: () = unsafe { msg_send![&file_menu.0, setAutoenablesItems:Bool::NO] };
         vec![main_menu, file_menu, help_menu]
     }
 
     /// Loses main menu's bold style.
     fn _change_app_menu_name(name: &str) {
-        let string: NSString = NSString::new(name);
+        let _pool = AutoReleasePool::new();
+        let string = NSString::new(name);
         unsafe {
             let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
             let main_menu: id = msg_send![shared_app, mainMenu];
             let item_zero: id = msg_send![main_menu, itemAtIndex:0];
             let app_menu: id = msg_send![item_zero, submenu];
-            let _: () = msg_send![app_menu, setTitle:string];
+            let _: () = msg_send![app_menu, setTitle:string.objc.autorelease_return()];
         }
     }
 
     /// Very raw, very ugly.
     fn _draw_and_set_app_menu_name(name: &str) {
+        let _pool = AutoReleasePool::new();
         let string: NSString = NSString::new(name);
         unsafe {
             use cacao::foundation::NSMutableDictionary;
@@ -254,17 +256,16 @@ impl CorApp {
             let mut dict: NSMutableDictionary = NSMutableDictionary::new();
             // This dictionary key name needs to be corrected.
             dict.insert(NSString::new("NSFontAttributeName"), font);
-            let dict_objc: id = dict.into_inner();
-            let size: CGSize = msg_send![string, sizeWithAttributes:dict_objc];
+            let dict_objc = dict.0.autorelease_return();
+            let size: CGSize = msg_send![&string.objc, sizeWithAttributes:dict_objc];
             let alloc: id = msg_send![class!(NSImage), alloc];
             let image: id = msg_send![alloc, initWithSize:size];
             let _: () = msg_send![image, lockFocus];
             let rect: CGRect = CGRect::new(&CGPoint::new(0.0, 0.5), &size);
-            let _: () =
-                msg_send![string, drawWithRect:rect options:1<<0 attributes:dict_objc context:nil];
+            let _: () = msg_send![&string.objc, drawWithRect:rect options:1<<0 attributes:dict_objc context:nil];
             let _: () = msg_send![image, unlockFocus];
 
-            let _: () = msg_send![app_menu, setTitle:NSString::new("")];
+            let _: () = msg_send![app_menu, setTitle:NSString::new("").objc.autorelease_return()];
             let _: () = msg_send![item_zero, setImage:image];
         }
     }
@@ -274,10 +275,12 @@ impl CorApp {
     fn _set_app_icon() {
         static ONCE: Once = Once::new();
         ONCE.call_once(|| {
+            let _pool = AutoReleasePool::new();
             let image: Image = Image::with_data(include_bytes!("../../images/icon.gif"));
             unsafe {
                 let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
-                let _: () = msg_send![shared_app, setApplicationIconImage:image];
+                let _: () =
+                    msg_send![shared_app, setApplicationIconImage:image.0.autorelease_return()];
             }
         })
     }
@@ -388,7 +391,7 @@ impl CorApp {
         sync_main_thread(move || {
             let this = app_from_objc::<Self>();
             let _: () = unsafe {
-                msg_send![this.game_window.objc, setFrame:old_frame display:YES animate:YES]
+                msg_send![&this.game_window.objc, setFrame:old_frame display:Bool::YES animate:Bool::YES]
             };
         });
         self.game_window.delegate.as_ref().unwrap().restore(false);
@@ -473,7 +476,7 @@ impl CorApp {
         sync_main_thread(move || {
             let this = app_from_objc::<Self>();
             let _: () = unsafe {
-                msg_send![this.game_window.objc, setFrame:old_frame display:YES animate:YES]
+                msg_send![&this.game_window.objc, setFrame:old_frame display:Bool::YES animate:Bool::YES]
             };
         });
         self.game_window.delegate.as_ref().unwrap().restore(false);
@@ -553,7 +556,7 @@ impl CorApp {
             };
         }
 
-        let key_code: u16 = unsafe { msg_send![event.0, keyCode] };
+        let key_code: u16 = unsafe { msg_send![&event.0, keyCode] };
         let multiplayer = self.socket.is_some();
 
         match key_code {
@@ -668,266 +671,256 @@ impl CorApp {
 
     /// Render the current [`State`].
     fn render(&mut self, screen_size: CGSize) {
-        autoreleasepool(|| {
-            // Render start.
-            unsafe {
-                let background: id = msg_send![class!(NSColor), blackColor];
-                let _: () = msg_send![self.screen.as_ref().unwrap().0, lockFocusFlipped:YES];
-                // Draw background
-                let _: () = msg_send![background, drawSwatchInRect:CGRect::new(&CGPoint::new(0., 0.), &screen_size)];
-            }
-            let state = self.state.as_ref().unwrap();
-            let ui = self.ui.as_ref().unwrap();
-            for j in 0..state.grid.height() as i16 {
-                for i in -1..state.grid.width() as i16 + 1 {
-                    // Draw cliffs.
-                    let cliff = is_cliff(i, j, &state.grid);
-                    if cliff.contains(&true) {
-                        for (idx, bl) in cliff.iter().enumerate() {
-                            if *bl {
-                                draw_tile(7 + idx as i16, 0, pos_x(ui, i), pos_y(j));
-                            }
+        let _pool = AutoReleasePool::new();
+        // Render start.
+        unsafe {
+            let background: id = msg_send![class!(NSColor), blackColor];
+            let _: () = msg_send![&self.screen.as_ref().unwrap().0, lockFocusFlipped:Bool::YES];
+            // Draw background
+            let _: () = msg_send![background, drawSwatchInRect:CGRect::new(&CGPoint::new(0., 0.), &screen_size)];
+        }
+        let state = self.state.as_ref().unwrap();
+        let ui = self.ui.as_ref().unwrap();
+        for j in 0..state.grid.height() as i16 {
+            for i in -1..state.grid.width() as i16 + 1 {
+                // Draw cliffs.
+                let cliff = is_cliff(i, j, &state.grid);
+                if cliff.contains(&true) {
+                    for (idx, bl) in cliff.iter().enumerate() {
+                        if *bl {
+                            draw_tile(7 + idx as i16, 0, pos_x(ui, i), pos_y(j));
                         }
-                        continue;
                     }
-                    if !is_within_grid(i, j, &state.grid) {
-                        continue;
-                    }
-                    match state.grid.tile(Pos(i as i32, j as i32)).unwrap() {
-                        Tile::Void => {}
-                        Tile::Habitable { land, units, owner } => {
-                            // Draw grass.
-                            draw_tile(
-                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6)
-                                    .abs(),
-                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6
-                                    % 3)
+                    continue;
+                }
+                if !is_within_grid(i, j, &state.grid) {
+                    continue;
+                }
+                match state.grid.tile(Pos(i as i32, j as i32)).unwrap() {
+                    Tile::Void => {}
+                    Tile::Habitable { land, units, owner } => {
+                        // Draw grass.
+                        draw_tile(
+                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6).abs(),
+                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6 % 3)
                                 .abs(),
-                                pos_x(ui, i),
-                                pos_y(j),
-                            );
-                            match land {
-                                HabitLand::Village => {
-                                    draw_tile_2h(0, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
-                                }
-                                HabitLand::Town => {
-                                    draw_tile_2h(1, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
-                                }
-                                HabitLand::Fortress => {
-                                    draw_tile_2h(2, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
-                                }
-                                HabitLand::Grassland => {
-                                    let pop = units[owner.0 as usize];
-                                    if pop > 0 {
-                                        draw_tile_noise(
-                                            pop_to_symbol(pop),
-                                            8 + 3 * owner.0 as i16,
-                                            pos_x(ui, i),
-                                            pos_y(j),
-                                            self.pop_variant.as_ref().unwrap()[i as usize]
-                                                [j as usize],
-                                        );
-                                        if fastrand::i16(..) % 20 == 0 {
-                                            let mut d = 1_i16;
-                                            if owner != &state.controlled {
-                                                d += 10;
-                                            }
-                                            let old_var = self.pop_variant.as_ref().unwrap()
-                                                [i as usize]
-                                                [j as usize];
-                                            self.pop_variant.as_mut().unwrap()[i as usize]
-                                                [j as usize] = (old_var + d) % 10000;
+                            pos_x(ui, i),
+                            pos_y(j),
+                        );
+                        match land {
+                            HabitLand::Village => {
+                                draw_tile_2h(0, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
+                            }
+                            HabitLand::Town => {
+                                draw_tile_2h(1, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
+                            }
+                            HabitLand::Fortress => {
+                                draw_tile_2h(2, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
+                            }
+                            HabitLand::Grassland => {
+                                let pop = units[owner.0 as usize];
+                                if pop > 0 {
+                                    draw_tile_noise(
+                                        pop_to_symbol(pop),
+                                        8 + 3 * owner.0 as i16,
+                                        pos_x(ui, i),
+                                        pos_y(j),
+                                        self.pop_variant.as_ref().unwrap()[i as usize][j as usize],
+                                    );
+                                    if fastrand::i16(..) % 20 == 0 {
+                                        let mut d = 1_i16;
+                                        if owner != &state.controlled {
+                                            d += 10;
                                         }
+                                        let old_var = self.pop_variant.as_ref().unwrap()
+                                            [i as usize][j as usize];
+                                        self.pop_variant.as_mut().unwrap()[i as usize]
+                                            [j as usize] = (old_var + d) % 10000;
                                     }
                                 }
                             }
                         }
-                        Tile::Mine(owner) => {
-                            // Draw grass.
-                            draw_tile(
-                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6)
-                                    .abs(),
-                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6
-                                    % 3)
+                    }
+                    Tile::Mine(owner) => {
+                        // Draw grass.
+                        draw_tile(
+                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6).abs(),
+                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6 % 3)
                                 .abs(),
-                                pos_x(ui, i),
-                                pos_y(j),
-                            );
-                            // Draw mountain.
-                            draw_tile_2h(
-                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 5)
-                                    .abs(),
-                                5,
-                                pos_x(ui, i),
-                                pos_y(j),
-                            );
-                            // Draw mine/.
-                            if owner.is_neutral() {
-                                draw_tile(5, 5, pos_x(ui, i), pos_y(j));
-                            } else {
-                                // Draw currency sign if controlled by a player.
-                                draw_tile_2h(5, 5, pos_x(ui, i), pos_y(j));
-                            }
-                        }
-                        Tile::Mountain => {
-                            // Draw grass.
-                            draw_tile(
-                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6)
-                                    .abs(),
-                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6
-                                    % 3)
-                                .abs(),
-                                pos_x(ui, i),
-                                pos_y(j),
-                            );
-                            // Draw mountain.
-                            draw_tile_2h(
-                                (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 5)
-                                    .abs(),
-                                5,
-                                pos_x(ui, i),
-                                pos_y(j),
-                            );
+                            pos_x(ui, i),
+                            pos_y(j),
+                        );
+                        // Draw mountain.
+                        draw_tile_2h(
+                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 5).abs(),
+                            5,
+                            pos_x(ui, i),
+                            pos_y(j),
+                        );
+                        // Draw mine/.
+                        if owner.is_neutral() {
+                            draw_tile(5, 5, pos_x(ui, i), pos_y(j));
+                        } else {
+                            // Draw currency sign if controlled by a player.
+                            draw_tile_2h(5, 5, pos_x(ui, i), pos_y(j));
                         }
                     }
-                    // Draw flags.
-                    for p in 0..MAX_PLAYERS as u32 {
-                        if state.fgs[p as usize].is_flagged(Pos(i as i32, j as i32)) {
-                            draw_tile_2h(
-                                match Player(p) == state.controlled {
-                                    true => 3,
-                                    false => 4,
-                                },
-                                7 + 3 * p as i16,
-                                pos_x(ui, i),
-                                pos_y(j),
-                            );
-                        }
+                    Tile::Mountain => {
+                        // Draw grass.
+                        draw_tile(
+                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6).abs(),
+                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6 % 3)
+                                .abs(),
+                            pos_x(ui, i),
+                            pos_y(j),
+                        );
+                        // Draw mountain.
+                        draw_tile_2h(
+                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 5).abs(),
+                            5,
+                            pos_x(ui, i),
+                            pos_y(j),
+                        );
+                    }
+                }
+                // Draw flags.
+                for p in 0..MAX_PLAYERS as u32 {
+                    if state.fgs[p as usize].is_flagged(Pos(i as i32, j as i32)) {
+                        draw_tile_2h(
+                            match Player(p) == state.controlled {
+                                true => 3,
+                                false => 4,
+                            },
+                            7 + 3 * p as i16,
+                            pos_x(ui, i),
+                            pos_y(j),
+                        );
                     }
                 }
             }
-            // Draw cursor.
-            draw_tile_2h(
-                6,
-                5,
-                pos_x(ui, ui.cursor.0 as i16 - 1),
-                pos_y(ui.cursor.1 as i16),
-            );
-            draw_tile_2h(
-                7,
-                5,
-                pos_x(ui, ui.cursor.0 as i16),
-                pos_y(ui.cursor.1 as i16),
-            );
-            draw_tile_2h(
-                8,
-                5,
-                pos_x(ui, ui.cursor.0 as i16 + 1),
-                pos_y(ui.cursor.1 as i16),
-            );
-            // Draw text.
-            let base_y = (pos_y(state.grid.height() as i16) + 1) * TILE_HEIGHT;
-            draw_str("Gold:", Player::NEUTRAL, TILE_WIDTH, base_y);
-            draw_str(
-                &format!("{}", state.countries[state.controlled.0 as usize].gold),
-                state.controlled,
-                TILE_WIDTH + 6 * TYPE_WIDTH,
-                base_y,
-            );
-            draw_str(
-                "Prices: 160 240 320",
-                Player::NEUTRAL,
-                TILE_WIDTH,
-                base_y + TYPE_HEIGHT,
-            );
-            draw_str(
-                "Date:",
-                Player::NEUTRAL,
-                TILE_WIDTH + 54 * TYPE_WIDTH,
-                base_y,
-            );
-            let (y, m, d) = time_to_ymd(state.time);
-            draw_str(
-                &format!("{y}-{m:02}-{d:02}"),
-                state.controlled,
-                TILE_WIDTH + 60 * TYPE_WIDTH,
-                base_y,
-            );
+        }
+        // Draw cursor.
+        draw_tile_2h(
+            6,
+            5,
+            pos_x(ui, ui.cursor.0 as i16 - 1),
+            pos_y(ui.cursor.1 as i16),
+        );
+        draw_tile_2h(
+            7,
+            5,
+            pos_x(ui, ui.cursor.0 as i16),
+            pos_y(ui.cursor.1 as i16),
+        );
+        draw_tile_2h(
+            8,
+            5,
+            pos_x(ui, ui.cursor.0 as i16 + 1),
+            pos_y(ui.cursor.1 as i16),
+        );
+        // Draw text.
+        let base_y = (pos_y(state.grid.height() as i16) + 1) * TILE_HEIGHT;
+        draw_str("Gold:", Player::NEUTRAL, TILE_WIDTH, base_y);
+        draw_str(
+            &format!("{}", state.countries[state.controlled.0 as usize].gold),
+            state.controlled,
+            TILE_WIDTH + 6 * TYPE_WIDTH,
+            base_y,
+        );
+        draw_str(
+            "Prices: 160 240 320",
+            Player::NEUTRAL,
+            TILE_WIDTH,
+            base_y + TYPE_HEIGHT,
+        );
+        draw_str(
+            "Date:",
+            Player::NEUTRAL,
+            TILE_WIDTH + 54 * TYPE_WIDTH,
+            base_y,
+        );
+        let (y, m, d) = time_to_ymd(state.time);
+        draw_str(
+            &format!("{y}-{m:02}-{d:02}"),
+            state.controlled,
+            TILE_WIDTH + 60 * TYPE_WIDTH,
+            base_y,
+        );
+        draw_str(
+            &format!(
+                "Speed: {}",
+                match state.speed {
+                    Speed::Fast => "Fast",
+                    Speed::Faster => "Faster",
+                    Speed::Fastest => "Fastest",
+                    Speed::Normal => "Normal",
+                    Speed::Pause => "Pause",
+                    Speed::Slow => "Slow",
+                    Speed::Slower => "Slower",
+                    Speed::Slowest => "Slowest",
+                }
+            ),
+            Player::NEUTRAL,
+            TILE_WIDTH + 54 * TYPE_WIDTH,
+            base_y + TYPE_HEIGHT,
+        );
+        draw_str(
+            "Population:",
+            Player::NEUTRAL,
+            TILE_WIDTH + 23 * TYPE_WIDTH,
+            base_y,
+        );
+        for p in 1..MAX_PLAYERS {
             draw_str(
                 &format!(
-                    "Speed: {}",
-                    match state.speed {
-                        Speed::Fast => "Fast",
-                        Speed::Faster => "Faster",
-                        Speed::Fastest => "Fastest",
-                        Speed::Normal => "Normal",
-                        Speed::Pause => "Pause",
-                        Speed::Slow => "Slow",
-                        Speed::Slower => "Slower",
-                        Speed::Slowest => "Slowest",
-                    }
+                    "{:>3}",
+                    state
+                        .grid
+                        .tile(Pos(ui.cursor.0, ui.cursor.1))
+                        .unwrap()
+                        .units()[p]
                 ),
-                Player::NEUTRAL,
-                TILE_WIDTH + 54 * TYPE_WIDTH,
+                Player(p as u32),
+                TILE_WIDTH + (23 + 4 * (p as i16 - 1)) * TYPE_WIDTH,
                 base_y + TYPE_HEIGHT,
             );
-            draw_str(
-                "Population:",
-                Player::NEUTRAL,
-                TILE_WIDTH + 23 * TYPE_WIDTH,
-                base_y,
-            );
-            for p in 1..MAX_PLAYERS {
-                draw_str(
-                    &format!(
-                        "{:>3}",
-                        state
-                            .grid
-                            .tile(Pos(ui.cursor.0, ui.cursor.1))
-                            .unwrap()
-                            .units()[p]
-                    ),
-                    Player(p as u32),
-                    TILE_WIDTH + (23 + 4 * (p as i16 - 1)) * TYPE_WIDTH,
-                    base_y + TYPE_HEIGHT,
-                );
-            }
-            draw_str(
-                "[Space] flag",
-                Player::NEUTRAL,
-                TILE_WIDTH,
-                base_y + 3 * TYPE_HEIGHT,
-            );
-            draw_str(
-                "[R] or [V] build",
-                Player::NEUTRAL,
-                TILE_WIDTH + 27 * TYPE_WIDTH,
-                base_y + 3 * TYPE_HEIGHT,
-            );
-            draw_str(
-                "[X],[C] mass remove",
-                Player::NEUTRAL,
-                TILE_WIDTH,
-                base_y + 4 * TYPE_HEIGHT,
-            );
-            draw_str(
-                "[S] slower [F] faster",
-                Player::NEUTRAL,
-                TILE_WIDTH + 54 * TYPE_WIDTH,
-                base_y + 3 * TYPE_HEIGHT,
-            );
-            draw_str(
-                "[P] pause",
-                Player::NEUTRAL,
-                TILE_WIDTH + 54 * TYPE_WIDTH,
-                base_y + 4 * TYPE_HEIGHT,
-            );
-            // Draw line.
-            draw_line(base_y);
-            unsafe {
-                let _: () = msg_send![self.screen.as_ref().unwrap().0, unlockFocus];
-            }
-        });
+        }
+        draw_str(
+            "[Space] flag",
+            Player::NEUTRAL,
+            TILE_WIDTH,
+            base_y + 3 * TYPE_HEIGHT,
+        );
+        draw_str(
+            "[R] or [V] build",
+            Player::NEUTRAL,
+            TILE_WIDTH + 27 * TYPE_WIDTH,
+            base_y + 3 * TYPE_HEIGHT,
+        );
+        draw_str(
+            "[X],[C] mass remove",
+            Player::NEUTRAL,
+            TILE_WIDTH,
+            base_y + 4 * TYPE_HEIGHT,
+        );
+        draw_str(
+            "[S] slower [F] faster",
+            Player::NEUTRAL,
+            TILE_WIDTH + 54 * TYPE_WIDTH,
+            base_y + 3 * TYPE_HEIGHT,
+        );
+        draw_str(
+            "[P] pause",
+            Player::NEUTRAL,
+            TILE_WIDTH + 54 * TYPE_WIDTH,
+            base_y + 4 * TYPE_HEIGHT,
+        );
+        // Draw line.
+        draw_line(base_y);
+        unsafe {
+            let _: () = msg_send![&self.screen.as_ref().unwrap().0, unlockFocus];
+        }
+
         // Flush.
         sync_main_thread(|| {
             app_from_objc::<Self>()
@@ -958,9 +951,9 @@ impl CorApp {
             let obj: id = msg_send![alloc, initWithSize:screen_size];
             self.screen = Some(Image::with(obj));
             // Resize window to fit `screen`.
-            old_frame = msg_send![self.game_window.objc, frame];
+            old_frame = msg_send![&self.game_window.objc, frame];
             let old_content: CGRect =
-                msg_send![self.game_window.objc, contentRectForFrameRect:old_frame];
+                msg_send![&self.game_window.objc, contentRectForFrameRect:old_frame];
             let new_content = CGRect::new(
                 &CGPoint::new(
                     old_content.origin.x,
@@ -969,11 +962,10 @@ impl CorApp {
                 &screen_size,
             );
             let new_frame: CGRect =
-                msg_send![self.game_window.objc, frameRectForContentRect:new_content];
+                msg_send![&self.game_window.objc, frameRectForContentRect:new_content];
             sync_main_thread(move || {
                 let this = app_from_objc::<Self>();
-                let _: () =
-                    msg_send![this.game_window.objc, setFrame:new_frame display:YES animate:YES];
+                let _: () = msg_send![&this.game_window.objc, setFrame:new_frame display:Bool::YES animate:Bool::YES];
             });
         }
         self.game_window
@@ -1034,11 +1026,12 @@ impl WindowDelegate for AboutWindow {
 
 /// Set font as `name`.
 fn set_font(obj: &Label, name: &str, size: Option<f64>) {
+    let _pool = AutoReleasePool::new();
     unsafe {
         let cls = class!(NSFont);
         let size: f64 = size.unwrap_or_else(|| msg_send![cls, labelFontSize]);
         let font_name: NSString = NSString::new(name);
-        let font: id = msg_send![cls, fontWithName:font_name size:size];
+        let font: id = msg_send![cls, fontWithName:font_name.objc.autorelease_return() size:size];
         obj.objc.with_mut(|obj| {
             let _: () = msg_send![obj, setFont:font];
         })
@@ -1100,27 +1093,25 @@ impl GameWindow {
 
     /// Set the window to initial state.
     fn restore(&self, resize: bool) {
-        let main: BOOL = unsafe { msg_send![class!(NSThread), isMainThread] };
-        match main {
-            YES => self.window.set_title("corCocoa"),
-            NO => sync_main_thread(|| app_from_objc::<CorApp>().game_window.set_title("corCocoa")),
-            #[cfg(not(target_arch = "aarch64"))]
-            _ => unreachable!(),
-        };
+        let main: Bool = unsafe { msg_send![class!(NSThread), isMainThread] };
+        if main.as_bool() {
+            self.window.set_title("corCocoa");
+        } else {
+            sync_main_thread(|| app_from_objc::<CorApp>().game_window.set_title("corCocoa"))
+        }
 
         self.err_msg.set_text_color(Color::Label);
         self.err_msg
             .set_text("Preference parsing error will be emitted here.");
-        match main {
-            YES => self.window.set_content_view(&self.err_msg),
-            NO => sync_main_thread(|| {
+        if main.as_bool() {
+            self.window.set_content_view(&self.err_msg);
+        } else {
+            sync_main_thread(|| {
                 let app = app_from_objc::<CorApp>();
                 app.game_window
                     .set_content_view(&app.game_window.delegate.as_ref().unwrap().err_msg);
-            }),
-            #[cfg(not(target_arch = "aarch64"))]
-            _ => unreachable!(),
-        };
+            })
+        }
         if resize {
             resize_window(&self.window, 200, 150);
         }
@@ -1141,11 +1132,11 @@ fn resize_window<F>(window: &Window, width: F, height: F)
 where
     F: Into<CGFloat>,
 {
-    let mut frame: CGRect = unsafe { msg_send![window.objc, frame] };
+    let mut frame: CGRect = unsafe { msg_send![&window.objc, frame] };
     frame.size = CGSize::new(width.into(), height.into());
     let obj = window.objc.clone();
     sync_main_thread(move || {
-        let _: () = unsafe { msg_send![obj, setFrame:frame display:YES animate:YES] };
+        let _: () = unsafe { msg_send![&obj, setFrame:frame display:Bool::YES animate:Bool::YES] };
     })
 }
 

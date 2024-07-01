@@ -5,7 +5,7 @@ use cacao::{
     },
     foundation::NSUInteger,
     input::TextField,
-    objc::{msg_send, sel, sel_impl},
+    objc::msg_send,
 };
 
 #[cfg(feature = "high-sierra")]
