@@ -8,7 +8,8 @@ use cacao::{
 /// Swim through the objective sea to find a rusty old pal.
 pub fn app_from_objc<T>() -> &'static mut T {
     unsafe {
-        let objc_app: id = msg_send![class!(RSTApplication), sharedApplication];
+        // @BUG: `cacao/foundation/class.rs` line 154 cacao classes now use RNG names.
+        let objc_app: id = msg_send![class!(RSTAppDelegate), sharedApplication];
         let objc_delegate: id = msg_send![objc_app, delegate];
         let rs_delegate_ptr: usize = *Object::ivar(&*objc_delegate, "rstAppPtr");
         &mut *(rs_delegate_ptr as *mut T)

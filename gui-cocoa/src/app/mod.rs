@@ -1,3 +1,4 @@
+use std::mem::ManuallyDrop;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::Once;
 use std::thread::sleep;
@@ -13,7 +14,7 @@ use crate::{
 };
 use build_time::build_time_local;
 use cacao::foundation::{AutoReleasePool, NSString};
-use cacao::objc::runtime::Bool;
+use cacao::objc::runtime::{Bool, Class};
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -122,11 +123,15 @@ impl CorApp {
             _listener: Event::local_monitor(cacao::appkit::EventMask::KeyDown, |e| {
                 let app = app_from_objc::<Self>();
                 if app.run && app.game_window.is_key() {
-                    let mut ret: Option<Event> = None;
-                    app.queue.exec_sync(|| {
-                        ret = app_from_objc::<Self>().process_input(e);
-                    });
-                    ret
+                    let keycode: u16 = unsafe { msg_send![&e.0, keyCode] };
+                    if app
+                        .queue
+                        .exec_sync(|| app_from_objc::<Self>().process_input(keycode))
+                    {
+                        None
+                    } else {
+                        Some(e)
+                    }
                 } else {
                     Some(e)
                 }
@@ -505,7 +510,8 @@ impl CorApp {
         cli_parser::parse_to_options(config_str.split_whitespace())
     }
 
-    fn process_input(&mut self, event: Event) -> Option<Event> {
+    /// Returns `true` if the event is consumed.
+    fn process_input(&mut self, carbon_keycode: u16) -> bool {
         // Move cursor
         const K_LEFT: u16 = 0x7B;
         const K_RIGHT: u16 = 0x7C;
@@ -556,10 +562,9 @@ impl CorApp {
             };
         }
 
-        let key_code: u16 = unsafe { msg_send![&event.0, keyCode] };
         let multiplayer = self.socket.is_some();
 
-        match key_code {
+        match carbon_keycode {
             K_LEFT | K_H => {
                 let ui = self.ui.as_mut().unwrap();
                 let mut cursor = ui.cursor;
@@ -664,9 +669,9 @@ impl CorApp {
                     c2s_msg!(FLAG_OFF_HALF);
                 }
             }
-            _ => return Some(event),
+            _ => return false,
         }
-        None
+        true
     }
 
     /// Render the current [`State`].
@@ -1026,7 +1031,7 @@ impl WindowDelegate for AboutWindow {
 
 /// Set font as `name`.
 fn set_font(obj: &Label, name: &str, size: Option<f64>) {
-    let _pool = AutoReleasePool::new();
+    let pool = ManuallyDrop::new(AutoReleasePool::new());
     unsafe {
         let cls = class!(NSFont);
         let size: f64 = size.unwrap_or_else(|| msg_send![cls, labelFontSize]);
@@ -1036,6 +1041,8 @@ fn set_font(obj: &Label, name: &str, size: Option<f64>) {
             let _: () = msg_send![obj, setFont:font];
         })
     }
+    pool.drain();
+    println!("{}", Class::classes_count());
 }
 
 struct HelpWindow {
@@ -1088,7 +1095,7 @@ impl GameWindow {
         self.err_msg
             .set_text_color(color.unwrap_or(Color::SystemRed));
         self.window.set_content_view(&self.err_msg);
-        resize_window(&self.window, 200, 150);
+        self.resize_window(200, 150);
     }
 
     /// Set the window to initial state.
@@ -1113,8 +1120,21 @@ impl GameWindow {
             })
         }
         if resize {
-            resize_window(&self.window, 200, 150);
+            self.resize_window(200, 150);
         }
+    }
+
+    fn resize_window<F>(&self, width: F, height: F)
+    where
+        F: Into<CGFloat>,
+    {
+        let mut frame: CGRect = unsafe { msg_send![&self.window.objc, frame] };
+        frame.size = CGSize::new(width.into(), height.into());
+        sync_main_thread(move || {
+            let _: () = unsafe {
+                msg_send![&app_from_objc::<CorApp>().game_window.objc, setFrame:frame display:Bool::YES animate:Bool::YES]
+            };
+        })
     }
 }
 
@@ -1126,18 +1146,6 @@ impl WindowDelegate for GameWindow {
         self.window.set_content_size(200, 150);
         self.restore(false);
     }
-}
-
-fn resize_window<F>(window: &Window, width: F, height: F)
-where
-    F: Into<CGFloat>,
-{
-    let mut frame: CGRect = unsafe { msg_send![&window.objc, frame] };
-    frame.size = CGSize::new(width.into(), height.into());
-    let obj = window.objc.clone();
-    sync_main_thread(move || {
-        let _: () = unsafe { msg_send![&obj, setFrame:frame display:Bool::YES animate:Bool::YES] };
-    })
 }
 
 /// 10 ms.
