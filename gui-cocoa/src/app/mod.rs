@@ -14,7 +14,7 @@ use crate::{
 };
 use build_time::build_time_local;
 use cacao::foundation::{AutoReleasePool, NSString};
-use cacao::objc::runtime::{Bool, Class};
+use cacao::objc::runtime::Bool;
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -235,7 +235,7 @@ impl CorApp {
 
     /// Loses main menu's bold style.
     fn _change_app_menu_name(name: &str) {
-        let _pool = AutoReleasePool::new();
+        let pool = ManuallyDrop::new(AutoReleasePool::new());
         let string = NSString::new(name);
         unsafe {
             let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
@@ -244,11 +244,12 @@ impl CorApp {
             let app_menu: id = msg_send![item_zero, submenu];
             let _: () = msg_send![app_menu, setTitle:string.objc.autorelease_return()];
         }
+        pool.drain();
     }
 
     /// Very raw, very ugly.
     fn _draw_and_set_app_menu_name(name: &str) {
-        let _pool = AutoReleasePool::new();
+        let pool = ManuallyDrop::new(AutoReleasePool::new());
         let string: NSString = NSString::new(name);
         unsafe {
             use cacao::foundation::NSMutableDictionary;
@@ -273,6 +274,7 @@ impl CorApp {
             let _: () = msg_send![app_menu, setTitle:NSString::new("").objc.autorelease_return()];
             let _: () = msg_send![item_zero, setImage:image];
         }
+        pool.drain();
     }
 
     /// Icon is hard-coded, so call this only once.\
@@ -280,13 +282,14 @@ impl CorApp {
     fn _set_app_icon() {
         static ONCE: Once = Once::new();
         ONCE.call_once(|| {
-            let _pool = AutoReleasePool::new();
+            let pool = ManuallyDrop::new(AutoReleasePool::new());
             let image: Image = Image::with_data(include_bytes!("../../images/icon.gif"));
             unsafe {
                 let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
                 let _: () =
                     msg_send![shared_app, setApplicationIconImage:image.0.autorelease_return()];
             }
+            pool.drain();
         })
     }
 
@@ -605,12 +608,10 @@ impl CorApp {
                     } else {
                         fg.add(&state.grid, cursor, FLAG_POWER);
                     }
+                } else if fg.is_flagged(cursor) {
+                    c2s_msg!(FLAG_OFF);
                 } else {
-                    if fg.is_flagged(cursor) {
-                        c2s_msg!(FLAG_OFF);
-                    } else {
-                        c2s_msg!(FLAG_ON);
-                    }
+                    c2s_msg!(FLAG_ON);
                 }
             }
             K_Q => self.terminate = true,
@@ -633,13 +634,11 @@ impl CorApp {
                         *prev_speed = *speed;
                         *speed = Speed::Pause;
                     }
+                } else if *speed == Speed::Pause {
+                    c2s_msg!(UNPAUSE);
                 } else {
-                    if *speed == Speed::Pause {
-                        c2s_msg!(UNPAUSE);
-                    } else {
-                        *prev_speed = *speed;
-                        c2s_msg!(PAUSE);
-                    }
+                    *prev_speed = *speed;
+                    c2s_msg!(PAUSE);
                 }
             }
             K_R | K_V => {
@@ -676,7 +675,7 @@ impl CorApp {
 
     /// Render the current [`State`].
     fn render(&mut self, screen_size: CGSize) {
-        let _pool = AutoReleasePool::new();
+        let pool = ManuallyDrop::new(AutoReleasePool::new());
         // Render start.
         unsafe {
             let background: id = msg_send![class!(NSColor), blackColor];
@@ -936,6 +935,8 @@ impl CorApp {
                 .game_view
                 .set_needs_display(true);
         });
+
+        pool.drain();
     }
 
     /// Returns `(screen_size, old_frame)`.
@@ -1042,7 +1043,6 @@ fn set_font(obj: &Label, name: &str, size: Option<f64>) {
         })
     }
     pool.drain();
-    println!("{}", Class::classes_count());
 }
 
 struct HelpWindow {
