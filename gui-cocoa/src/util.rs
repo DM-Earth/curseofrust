@@ -9,8 +9,6 @@ use cacao::{
 pub fn app_from_objc<T>() -> &'static mut T {
     unsafe {
         use cacao::foundation::load_or_register_class;
-        // @BUG: `cacao/foundation/class.rs` line 154 cacao classes now use RNG names.
-
         let objc_app: id = msg_send![
             load_or_register_class("NSApplication", "RSTApplication", |_| {}),
             sharedApplication
