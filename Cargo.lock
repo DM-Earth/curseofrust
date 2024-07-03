@@ -381,6 +381,7 @@ dependencies = [
  "curseofrust-msg",
  "dispatch",
  "fastrand",
+ "itoa",
  "local-ip-address",
 ]
 

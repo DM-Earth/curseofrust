@@ -41,12 +41,13 @@ use curseofrust::{
 };
 use curseofrust::{Player, Pos, MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH};
 use dispatch::{Queue, QueueAttribute};
+use itoa::Buffer;
 use local_ip_address::{local_ip, local_ipv6};
 use msg::{bytemuck, server_msg, S2CData, C2S_SIZE, S2C_SIZE};
 
 use self::output::{
-    draw_line, draw_tile_2h, draw_tile_noise, is_cliff, is_within_grid, pop_to_symbol, pos_x,
-    pos_y, time_to_ymd, TILE_WIDTH,
+    draw_int, draw_line, draw_tile_2h, draw_tile_noise, is_cliff, is_within_grid, pop_to_symbol,
+    pos_x, pos_y, time_to_ymd, TILE_WIDTH,
 };
 
 mod config;
@@ -124,14 +125,9 @@ impl CorApp {
                 let app = app_from_objc::<Self>();
                 if app.run && app.game_window.is_key() {
                     let keycode: u16 = unsafe { msg_send![&e.0, keyCode] };
-                    if app
-                        .queue
-                        .exec_sync(|| app_from_objc::<Self>().process_input(keycode))
-                    {
-                        None
-                    } else {
-                        Some(e)
-                    }
+                    app.queue
+                        .exec_sync(|| !app_from_objc::<Self>().process_input(keycode))
+                        .then_some(e)
                 } else {
                     Some(e)
                 }
@@ -375,6 +371,7 @@ impl CorApp {
         let (screen_size, old_frame) = self.init_screen();
         let mut prev_time = Instant::now();
         let mut k: u16 = 0;
+        let mut itoa_buf = Buffer::new();
         while !self.terminate {
             if Instant::now().duration_since(prev_time) >= DELAY {
                 prev_time += DELAY;
@@ -390,7 +387,7 @@ impl CorApp {
                     state.simulate();
                 }
                 if k % 5 == 0 {
-                    self.render(screen_size);
+                    self.render(screen_size, &mut itoa_buf);
                 }
             } else {
                 sleep(DELAY / 2);
@@ -435,6 +432,7 @@ impl CorApp {
         let mut s2c_buf = [0u8; S2C_SIZE];
         let mut screen_size: CGSize = Default::default();
         let mut old_frame: CGRect = Default::default();
+        let mut itoa_buf = Buffer::new();
         while !self.terminate {
             if Instant::now().duration_since(prev_time) >= DELAY {
                 prev_time += DELAY;
@@ -474,7 +472,7 @@ impl CorApp {
                 // End fetch state
 
                 if self.run && k % 5 == 0 {
-                    self.render(screen_size);
+                    self.render(screen_size, &mut itoa_buf);
                 }
             } else {
                 sleep(DELAY / 2);
@@ -674,7 +672,7 @@ impl CorApp {
     }
 
     /// Render the current [`State`].
-    fn render(&mut self, screen_size: CGSize) {
+    fn render(&mut self, screen_size: CGSize, itoa_buf: &mut Buffer) {
         let pool = ManuallyDrop::new(AutoReleasePool::new());
         // Render start.
         unsafe {
@@ -685,6 +683,7 @@ impl CorApp {
         }
         let state = self.state.as_ref().unwrap();
         let ui = self.ui.as_ref().unwrap();
+        let tile_var = self.tile_variant.as_ref().unwrap();
         for j in 0..state.grid.height() as i16 {
             for i in -1..state.grid.width() as i16 + 1 {
                 // Draw cliffs.
@@ -705,9 +704,8 @@ impl CorApp {
                     Tile::Habitable { land, units, owner } => {
                         // Draw grass.
                         draw_tile(
-                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6).abs(),
-                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6 % 3)
-                                .abs(),
+                            (tile_var[i as usize][j as usize] % 6).abs(),
+                            (tile_var[i as usize][j as usize] / 6 % 3).abs(),
                             pos_x(ui, i),
                             pos_y(j),
                         );
@@ -748,15 +746,14 @@ impl CorApp {
                     Tile::Mine(owner) => {
                         // Draw grass.
                         draw_tile(
-                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6).abs(),
-                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6 % 3)
-                                .abs(),
+                            (tile_var[i as usize][j as usize] % 6).abs(),
+                            (tile_var[i as usize][j as usize] / 6 % 3).abs(),
                             pos_x(ui, i),
                             pos_y(j),
                         );
                         // Draw mountain.
                         draw_tile_2h(
-                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 5).abs(),
+                            (tile_var[i as usize][j as usize] % 5).abs(),
                             5,
                             pos_x(ui, i),
                             pos_y(j),
@@ -772,15 +769,14 @@ impl CorApp {
                     Tile::Mountain => {
                         // Draw grass.
                         draw_tile(
-                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 6).abs(),
-                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] / 6 % 3)
-                                .abs(),
+                            (tile_var[i as usize][j as usize] % 6).abs(),
+                            (tile_var[i as usize][j as usize] / 6 % 3).abs(),
                             pos_x(ui, i),
                             pos_y(j),
                         );
                         // Draw mountain.
                         draw_tile_2h(
-                            (self.tile_variant.as_ref().unwrap()[i as usize][j as usize] % 5).abs(),
+                            (tile_var[i as usize][j as usize] % 5).abs(),
                             5,
                             pos_x(ui, i),
                             pos_y(j),
@@ -825,11 +821,12 @@ impl CorApp {
         // Draw text.
         let base_y = (pos_y(state.grid.height() as i16) + 1) * TILE_HEIGHT;
         draw_str("Gold:", Player::NEUTRAL, TILE_WIDTH, base_y);
-        draw_str(
-            &format!("{}", state.countries[state.controlled.0 as usize].gold),
+        draw_int(
+            state.countries[state.controlled.0 as usize].gold,
             state.controlled,
             TILE_WIDTH + 6 * TYPE_WIDTH,
             base_y,
+            itoa_buf,
         );
         draw_str(
             "Prices: 160 240 320",
@@ -844,28 +841,70 @@ impl CorApp {
             base_y,
         );
         let (y, m, d) = time_to_ymd(state.time);
-        draw_str(
-            &format!("{y}-{m:02}-{d:02}"),
+        draw_int(
+            y,
             state.controlled,
             TILE_WIDTH + 60 * TYPE_WIDTH,
             base_y,
+            itoa_buf,
         );
+        draw_str("-", state.controlled, TILE_WIDTH + 64 * TYPE_WIDTH, base_y);
+        if m > 9 {
+            draw_int(
+                m,
+                state.controlled,
+                TILE_WIDTH + 65 * TYPE_WIDTH,
+                base_y,
+                itoa_buf,
+            );
+        } else {
+            draw_str("0", state.controlled, TILE_WIDTH + 65 * TYPE_WIDTH, base_y);
+            draw_int(
+                m,
+                state.controlled,
+                TILE_WIDTH + 66 * TYPE_WIDTH,
+                base_y,
+                itoa_buf,
+            );
+        }
+        draw_str("-", state.controlled, TILE_WIDTH + 67 * TYPE_WIDTH, base_y);
+        if d > 9 {
+            draw_int(
+                d,
+                state.controlled,
+                TILE_WIDTH + 68 * TYPE_WIDTH,
+                base_y,
+                itoa_buf,
+            );
+        } else {
+            draw_str("0", state.controlled, TILE_WIDTH + 68 * TYPE_WIDTH, base_y);
+            draw_int(
+                d,
+                state.controlled,
+                TILE_WIDTH + 69 * TYPE_WIDTH,
+                base_y,
+                itoa_buf,
+            );
+        }
         draw_str(
-            &format!(
-                "Speed: {}",
-                match state.speed {
-                    Speed::Fast => "Fast",
-                    Speed::Faster => "Faster",
-                    Speed::Fastest => "Fastest",
-                    Speed::Normal => "Normal",
-                    Speed::Pause => "Pause",
-                    Speed::Slow => "Slow",
-                    Speed::Slower => "Slower",
-                    Speed::Slowest => "Slowest",
-                }
-            ),
+            "Speed:",
             Player::NEUTRAL,
             TILE_WIDTH + 54 * TYPE_WIDTH,
+            base_y + TYPE_HEIGHT,
+        );
+        draw_str(
+            match state.speed {
+                Speed::Fast => "Fast",
+                Speed::Faster => "Faster",
+                Speed::Fastest => "Fastest",
+                Speed::Normal => "Normal",
+                Speed::Pause => "Pause",
+                Speed::Slow => "Slow",
+                Speed::Slower => "Slower",
+                Speed::Slowest => "Slowest",
+            },
+            Player::NEUTRAL,
+            TILE_WIDTH + 61 * TYPE_WIDTH,
             base_y + TYPE_HEIGHT,
         );
         draw_str(
@@ -875,17 +914,18 @@ impl CorApp {
             base_y,
         );
         for p in 1..MAX_PLAYERS {
+            let pop_str = itoa_buf.format(
+                state
+                    .grid
+                    .tile(Pos(ui.cursor.0, ui.cursor.1))
+                    .unwrap()
+                    .units()[p],
+            );
+            let offset = 3 - pop_str.len();
             draw_str(
-                &format!(
-                    "{:>3}",
-                    state
-                        .grid
-                        .tile(Pos(ui.cursor.0, ui.cursor.1))
-                        .unwrap()
-                        .units()[p]
-                ),
+                pop_str,
                 Player(p as u32),
-                TILE_WIDTH + (23 + 4 * (p as i16 - 1)) * TYPE_WIDTH,
+                TILE_WIDTH + (23 + 4 * (p as i16 - 1)) * TYPE_WIDTH + offset as i16,
                 base_y + TYPE_HEIGHT,
             );
         }

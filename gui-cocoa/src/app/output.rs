@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use cacao::{
     core_graphics::{
         base::CGFloat,
@@ -10,14 +8,15 @@ use cacao::{
     objc::msg_send,
 };
 use curseofrust::{state, Grid, Player, Pos};
+use itoa::{Buffer, Integer};
 
 thread_local! {
     /// Contains all possible characters of all colors.
-    static TYPE: RefCell<Image> = Image::with_data(include_bytes!("../../images/type.gif")).into();
+    static TYPE: Image = Image::with_data(include_bytes!("../../images/type.gif"));
     /// The line between two text sections.
-    static UI: RefCell<Image> = Image::with_data(include_bytes!("../../images/ui.gif")).into();
+    static UI: Image = Image::with_data(include_bytes!("../../images/ui.gif"));
     /// Main game resources.
-    static TILE: RefCell<Image> = Image::with_data(include_bytes!("../../images/tileset.gif")).into();
+    static TILE: Image = Image::with_data(include_bytes!("../../images/tileset.gif"));
 }
 
 pub const TILE_WIDTH: i16 = 32;
@@ -73,7 +72,7 @@ pub fn draw_str(string: &str, color: Player, dest_x: i16, dest_y: i16) {
             &CGSize::new(TYPE_WIDTH as f64, TYPE_HEIGHT as f64),
         );
         let dest_point = CGPoint::new((dest_x + index as i16 * TYPE_WIDTH) as f64, dest_y as f64);
-        TYPE.with_borrow(|ty| draw_raw!(&ty.0, dest_point, type_rect));
+        TYPE.with(|ty| draw_raw!(&ty.0, dest_point, type_rect));
     }
 }
 
@@ -87,7 +86,7 @@ pub fn draw_tile(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16) {
         (dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) as f64,
         (dest_j * TILE_HEIGHT) as f64,
     );
-    TILE.with_borrow(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
+    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
 }
 
 /// Draws double height tiles like working mine.
@@ -103,7 +102,7 @@ pub fn draw_tile_2h(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16) {
         (dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) as f64,
         ((dest_j - 1) * TILE_HEIGHT) as f64,
     );
-    TILE.with_borrow(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
+    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
 }
 
 /// Draws tiles with offset like population.
@@ -118,7 +117,7 @@ pub fn draw_tile_noise(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16, var: i1
         ((dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) + rnd_x) as f64,
         ((dest_j * TILE_HEIGHT) + rnd_y) as f64,
     );
-    TILE.with_borrow(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
+    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
 }
 
 /// Return value:
@@ -184,5 +183,11 @@ pub fn draw_line(base_y: i16) {
         TILE_WIDTH as f64 + 75. * TYPE_WIDTH as f64 / 2. - LINE_WIDTH / 2.,
         base_y as f64 + TYPE_HEIGHT as f64 * 5. / 2.,
     );
-    UI.with_borrow(|ui| draw_raw!(&ui.0, dest_point, ui_rect));
+    UI.with(|ui| draw_raw!(&ui.0, dest_point, ui_rect));
+}
+
+/// Draws int with specified color.\
+/// You should call `lockFocusFlipped:YES` before calling this.
+pub fn draw_int<I: Integer>(num: I, color: Player, dest_x: i16, dest_y: i16, buf: &mut Buffer) {
+    draw_str(buf.format(num), color, dest_x, dest_y);
 }
