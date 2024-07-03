@@ -5,18 +5,18 @@ use cacao::{
     },
     foundation::NSUInteger,
     image::Image,
-    lazy_static::lazy_static,
-    objc::{msg_send, sel, sel_impl},
+    objc::msg_send,
 };
 use curseofrust::{state, Grid, Player, Pos};
+use itoa::{Buffer, Integer};
 
-lazy_static! {
+thread_local! {
     /// Contains all possible characters of all colors.
-    static ref TYPE: Image = Image::with_data(include_bytes!("../../images/type.gif"));
+    static TYPE: Image = Image::with_data(include_bytes!("../../images/type.gif"));
     /// The line between two text sections.
-    static ref UI: Image = Image::with_data(include_bytes!("../../images/ui.gif"));
+    static UI: Image = Image::with_data(include_bytes!("../../images/ui.gif"));
     /// Main game resources.
-    static ref TILE: Image = Image::with_data(include_bytes!("../../images/tileset.gif"));
+    static TILE: Image = Image::with_data(include_bytes!("../../images/tileset.gif"));
 }
 
 pub const TILE_WIDTH: i16 = 32;
@@ -28,7 +28,8 @@ const TYPE_FIRST: u8 = 33;
 const LINE_LENGTH: i16 = 32;
 const COLOR_OFFSET: i16 = 3;
 
-/// Copied from `icrate`.
+/// Copied from `icrate`.\
+/// 2024-07-01 update: `icrate` is dead.
 #[allow(non_upper_case_globals)]
 const NSCompositingOperationSourceOver: NSUInteger = 2;
 
@@ -41,6 +42,14 @@ pub fn pos_x(ui: &state::UI, i: i16) -> i16 {
 #[inline]
 pub fn pos_y(j: i16) -> i16 {
     j + 1
+}
+
+macro_rules! draw_raw {
+    ($image:expr,$dest:ident,$from:ident) => {
+        unsafe{
+            let _: () = msg_send![$image, drawAtPoint:$dest fromRect:$from, operation:NSCompositingOperationSourceOver fraction:(1. as CGFloat)];
+        }
+    };
 }
 
 /// Draws string with specified color.\
@@ -63,9 +72,7 @@ pub fn draw_str(string: &str, color: Player, dest_x: i16, dest_y: i16) {
             &CGSize::new(TYPE_WIDTH as f64, TYPE_HEIGHT as f64),
         );
         let dest_point = CGPoint::new((dest_x + index as i16 * TYPE_WIDTH) as f64, dest_y as f64);
-        let _: () = unsafe {
-            msg_send![TYPE.0, drawAtPoint:dest_point fromRect:type_rect operation:NSCompositingOperationSourceOver fraction:(1. as CGFloat)]
-        };
+        TYPE.with(|ty| draw_raw!(&ty.0, dest_point, type_rect));
     }
 }
 
@@ -79,9 +86,7 @@ pub fn draw_tile(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16) {
         (dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) as f64,
         (dest_j * TILE_HEIGHT) as f64,
     );
-    let _: () = unsafe {
-        msg_send![TILE.0, drawAtPoint:dest_point fromRect:tile_rect operation:NSCompositingOperationSourceOver fraction:(1. as CGFloat)]
-    };
+    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
 }
 
 /// Draws double height tiles like working mine.
@@ -97,9 +102,7 @@ pub fn draw_tile_2h(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16) {
         (dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) as f64,
         ((dest_j - 1) * TILE_HEIGHT) as f64,
     );
-    let _: () = unsafe {
-        msg_send![TILE.0, drawAtPoint:dest_point fromRect:tile_rect operation:NSCompositingOperationSourceOver fraction:(1. as CGFloat)]
-    };
+    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
 }
 
 /// Draws tiles with offset like population.
@@ -114,9 +117,7 @@ pub fn draw_tile_noise(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16, var: i1
         ((dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) + rnd_x) as f64,
         ((dest_j * TILE_HEIGHT) + rnd_y) as f64,
     );
-    let _: () = unsafe {
-        msg_send![TILE.0, drawAtPoint:dest_point fromRect:tile_rect operation:NSCompositingOperationSourceOver fraction:(1. as CGFloat)]
-    };
+    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
 }
 
 /// Return value:
@@ -182,7 +183,11 @@ pub fn draw_line(base_y: i16) {
         TILE_WIDTH as f64 + 75. * TYPE_WIDTH as f64 / 2. - LINE_WIDTH / 2.,
         base_y as f64 + TYPE_HEIGHT as f64 * 5. / 2.,
     );
-    let _: () = unsafe {
-        msg_send![UI.0, drawAtPoint:dest_point fromRect:ui_rect operation:NSCompositingOperationSourceOver fraction:(1. as CGFloat)]
-    };
+    UI.with(|ui| draw_raw!(&ui.0, dest_point, ui_rect));
+}
+
+/// Draws int with specified color.\
+/// You should call `lockFocusFlipped:YES` before calling this.
+pub fn draw_int<I: Integer>(num: I, color: Player, dest_x: i16, dest_y: i16, buf: &mut Buffer) {
+    draw_str(buf.format(num), color, dest_x, dest_y);
 }

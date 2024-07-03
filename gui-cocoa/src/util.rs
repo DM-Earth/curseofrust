@@ -2,15 +2,19 @@ use std::ops::{Deref, DerefMut};
 
 use cacao::{
     foundation::id,
-    objc::{class, msg_send, sel, sel_impl},
+    objc::{msg_send, runtime::Object},
 };
 
 /// Swim through the objective sea to find a rusty old pal.
 pub fn app_from_objc<T>() -> &'static mut T {
     unsafe {
-        let objc_app: id = msg_send![class!(RSTApplication), sharedApplication];
+        use cacao::foundation::load_or_register_class;
+        let objc_app: id = msg_send![
+            load_or_register_class("NSApplication", "RSTApplication", |_| {}),
+            sharedApplication
+        ];
         let objc_delegate: id = msg_send![objc_app, delegate];
-        let rs_delegate_ptr: usize = *(*objc_delegate).get_ivar("rstAppPtr");
+        let rs_delegate_ptr: usize = *Object::ivar(&*objc_delegate, "rstAppPtr");
         &mut *(rs_delegate_ptr as *mut T)
     }
 }
