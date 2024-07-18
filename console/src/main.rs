@@ -123,7 +123,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                 st.s.update_timeline();
             }
 
-            output::draw_grid(st)?;
+            output::draw_all_grid(st)?;
         }
 
         st.out.flush()?;
@@ -213,7 +213,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                             _ => (),
                         }
 
-                        output::draw_grid(st)?;
+                        output::draw_grid(st, None)?;
                     }
                 }
             },

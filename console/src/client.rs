@@ -102,7 +102,7 @@ pub(crate) fn run<W: Write>(
                         let mut st_guard = st.borrow_mut();
                         let st = &mut ***st_guard;
                         curseofrust_msg::apply_s2c_msg(&mut st.s, data)?;
-                        crate::output::draw_grid(st)?;
+                        crate::output::draw_all_grid(st)?;
                         Ok(true)
                     } else {
                         Result::<bool, DirectBoxedError>::Ok(false)
@@ -216,7 +216,7 @@ pub(crate) fn run<W: Write>(
                                 _ => {}
                             }
 
-                            crate::output::draw_grid(st)?;
+                            crate::output::draw_all_grid(st)?;
                         }
                     }
                 };
