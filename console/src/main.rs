@@ -213,7 +213,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                             _ => (),
                         }
 
-                        output::draw_grid(st, None)?;
+                        output::draw_all_grid(st)?;
                     }
                 }
             },
