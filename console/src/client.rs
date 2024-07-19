@@ -12,7 +12,7 @@ use crossterm::{
     event::{KeyCode, KeyEvent},
     execute, queue, terminal,
 };
-use curseofrust::{grid::Tile, Speed};
+use curseofrust::{grid::Tile, Pos, Speed};
 use curseofrust_msg::{bytemuck, C2SData, S2CData, C2S_SIZE, S2C_SIZE};
 use curseofrust_net_foundation::{Handle, Protocol};
 use futures_lite::StreamExt as _;
@@ -209,14 +209,30 @@ pub(crate) fn run<W: Write>(
                                     if !st.s.grid.tile(st.ui.cursor).is_some_and(Tile::is_visible) {
                                         st.ui.cursor = cursor;
                                     }
+
+                                    if st.ui.cursor == cursor {
+                                        crate::output::draw_grid(
+                                            st,
+                                            Some([cursor, Pos(cursor.0 + 1, cursor.1)]),
+                                        )?;
+                                    } else {
+                                        crate::output::draw_grid(
+                                            st,
+                                            Some([
+                                                cursor,
+                                                Pos(cursor.0 + 1, cursor.1),
+                                                st.ui.cursor,
+                                                Pos(st.ui.cursor.0 + 1, st.ui.cursor.1),
+                                            ]),
+                                        )?;
+                                    }
                                 }
                                 crossterm::event::Event::Resize(_, _) => {
-                                    queue!(st.out, terminal::Clear(terminal::ClearType::All))?
+                                    queue!(st.out, terminal::Clear(terminal::ClearType::All))?;
+                                    crate::output::draw_all_grid(st)?;
                                 }
                                 _ => {}
                             }
-
-                            crate::output::draw_all_grid(st)?;
                         }
                     }
                 };
