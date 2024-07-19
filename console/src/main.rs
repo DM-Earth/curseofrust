@@ -10,7 +10,7 @@ use crossterm::{
     event::{KeyCode, KeyEvent},
     execute, queue, terminal,
 };
-use curseofrust::{grid::Tile, Speed, FLAG_POWER};
+use curseofrust::{grid::Tile, Pos, Speed, FLAG_POWER};
 use curseofrust_cli_parser::Options;
 use futures_lite::StreamExt;
 
@@ -123,7 +123,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                 st.s.update_timeline();
             }
 
-            output::draw_grid(st)?;
+            output::draw_all_grid(st)?;
         }
 
         st.out.flush()?;
@@ -206,14 +206,30 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                                 if !st.s.grid.tile(st.ui.cursor).is_some_and(Tile::is_visible) {
                                     st.ui.cursor = cursor;
                                 }
+
+                                if st.ui.cursor == cursor {
+                                    output::draw_grid(
+                                        st,
+                                        Some([cursor, Pos(cursor.0 + 1, cursor.1)]),
+                                    )?;
+                                } else {
+                                    output::draw_grid(
+                                        st,
+                                        Some([
+                                            cursor,
+                                            Pos(cursor.0 + 1, cursor.1),
+                                            st.ui.cursor,
+                                            Pos(st.ui.cursor.0 + 1, st.ui.cursor.1),
+                                        ]),
+                                    )?;
+                                }
                             }
                             crossterm::event::Event::Resize(_, _) => {
-                                queue!(st.out, terminal::Clear(terminal::ClearType::All))?
+                                queue!(st.out, terminal::Clear(terminal::ClearType::All))?;
+                                output::draw_all_grid(st)?;
                             }
                             _ => (),
                         }
-
-                        output::draw_grid(st)?;
                     }
                 }
             },
