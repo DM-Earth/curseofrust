@@ -1,4 +1,4 @@
-use std::{cmp::max, ffi::OsStr, process::exit};
+use std::{cmp::max, ffi::OsStr, net::SocketAddr};
 
 use curseofrust::state::{BasicOpts, MultiplayerOpts};
 
@@ -10,11 +10,58 @@ const DEFAULT_SERVER_PORT: u16 = 19140;
 const DEFAULT_CLIENT_PORT: u16 = 19150;
 
 /// Parses the command line arguments.
+#[deprecated(note = "use `parse_to_options` instead")]
 pub fn parse(
     args: impl IntoIterator<Item = impl Into<std::ffi::OsString>>,
 ) -> Result<(BasicOpts, MultiplayerOpts), Error> {
+    let options = parse_to_options(args)?;
+    if options.exit {
+        std::process::exit(0);
+    }
+    Ok((options.basic, options.multiplayer))
+}
+
+#[cfg(feature = "net-proto")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum Protocol {
+    Tcp,
+    #[default]
+    Udp,
+    WebSocket,
+}
+
+#[cfg(feature = "net-proto")]
+impl std::str::FromStr for Protocol {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "tcp" => Protocol::Tcp,
+            "udp" => Protocol::Udp,
+            "ws" | "websocket" => Protocol::WebSocket,
+            _ => {
+                return Err(Error::UnknownVariant {
+                    ty: "protocol",
+                    variants: &["tcp", "udp", "ws or websocket"],
+                    value: s.to_owned(),
+                })
+            }
+        })
+    }
+}
+
+pub fn parse_to_options<I, S>(args: I) -> Result<Options, Error>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<std::ffi::OsString>,
+{
     let mut basic_opts = BasicOpts::default();
     let mut multiplayer_opts = MultiplayerOpts::default();
+    let mut exit = false;
+
+    #[cfg(feature = "net-proto")]
+    let mut protocol = Protocol::default();
 
     let args = clap_lex::RawArgs::new(args);
     let mut cursor = args.cursor();
@@ -66,35 +113,42 @@ pub fn parse(
                         };
                     }
                     'C' => {
-                        if let MultiplayerOpts::Client(ref mut addr) = multiplayer_opts {
-                            addr.set_ip(parse!("-C", "IP")?);
+                        let parsed = parse!("-C", "SocketAddr")?;
+                        if let MultiplayerOpts::Client { ref mut server, .. } = multiplayer_opts {
+                            *server = parsed;
                         } else {
-                            multiplayer_opts = MultiplayerOpts::Client(
-                                (parse!("-C", "IP", std::net::IpAddr)?, DEFAULT_CLIENT_PORT).into(),
-                            );
+                            multiplayer_opts = MultiplayerOpts::Client {
+                                server: parsed,
+                                port: DEFAULT_CLIENT_PORT,
+                            }
                         }
                     }
                     'c' => {
-                        if let MultiplayerOpts::Client(ref mut addr) = multiplayer_opts {
-                            addr.set_port(parse!("-c", "integer")?);
+                        let parsed = parse!("-c", "integer")?;
+                        if let MultiplayerOpts::Client { ref mut port, .. } = multiplayer_opts {
+                            *port = parsed
                         } else {
-                            multiplayer_opts = MultiplayerOpts::Client(
-                                (
-                                    std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
-                                    parse!("-c", "integer")?,
-                                )
-                                    .into(),
-                            );
+                            multiplayer_opts = MultiplayerOpts::Client {
+                                server: SocketAddr::from((
+                                    std::net::Ipv4Addr::LOCALHOST,
+                                    DEFAULT_SERVER_PORT,
+                                )),
+                                port: parsed,
+                            };
                         }
                     }
                     'v' => {
                         println!("curseofrust");
-                        exit(0)
+                        exit = true
                     }
                     'h' => {
                         println!("{HELP_MSG}");
-                        exit(0)
+                        exit = true
                     }
+
+                    #[cfg(feature = "net-proto")]
+                    'p' => protocol = parse!("-p", "protocol", Protocol)?,
+
                     f => return Err(Error::UnknownFlag { flag: f }),
                 }
             }
@@ -106,7 +160,26 @@ pub fn parse(
         basic_opts.width += 10;
     }
 
-    Ok((basic_opts, multiplayer_opts))
+    Ok(Options {
+        basic: basic_opts,
+        multiplayer: multiplayer_opts,
+        exit,
+
+        #[cfg(feature = "net-proto")]
+        protocol,
+    })
+}
+
+/// The options for the program.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct Options {
+    pub basic: BasicOpts,
+    pub multiplayer: MultiplayerOpts,
+    pub exit: bool,
+
+    #[cfg(feature = "net-proto")]
+    pub protocol: Protocol,
 }
 
 #[derive(Debug)]
@@ -183,8 +256,7 @@ impl From<std::net::AddrParseError> for Error {
 impl std::error::Error for Error {}
 
 /// The help message for the program.
-pub const HELP_MSG: &str = // Pad
-    r#"                                __
+pub const HELP_MSG: &str = r#"                                __
    ____                        /  ]  ________             __
   / __ \_ _ ___ ___ ___    __ _| |_  |  ___  \__  __ ___ _| |__
 _/ /  \/ | |X _/ __/ __\  /   \   /  | |___| | | |  / __/_  __/

@@ -1,45 +1,28 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell, UnsafeCell},
     fmt::Debug,
-    marker::PhantomData,
-    net::{IpAddr, SocketAddr, UdpSocket},
+    net::SocketAddr,
     time::{Duration, SystemTime},
 };
 
 use async_executor::LocalExecutor;
-use async_io::Async;
 use curseofrust::{
     state::{MultiplayerOpts, State},
     Player, Speed,
 };
-use curseofrust_msg::{bytemuck, C2SData, ClientRecord, S2CData, C2S_SIZE, S2C_SIZE};
+use curseofrust_cli_parser::Options;
+use curseofrust_msg::{bytemuck, C2SData, S2CData, C2S_SIZE, S2C_SIZE};
+use curseofrust_net_foundation::{Connection, Handle, Protocol};
 
-const DEFAULT_NAME: &str = include_str!("../jim.txt");
 const DURATION: Duration = Duration::from_millis(10);
 
-struct TaskDetacher<T>(PhantomData<T>);
-
-impl<T> Extend<async_executor::Task<T>> for TaskDetacher<T> {
-    #[inline(always)]
-    fn extend<I: IntoIterator<Item = async_executor::Task<T>>>(&mut self, iter: I) {
-        for task in iter {
-            task.detach();
-        }
-    }
-}
-
-struct SocketAddrs<T>(T);
-
-impl<T> std::net::ToSocketAddrs for SocketAddrs<T>
-where
-    T: IntoIterator<Item = SocketAddr> + Clone,
-{
-    type Iter = <T as IntoIterator>::IntoIter;
-
-    #[inline(always)]
-    fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
-        Ok(self.0.clone().into_iter())
-    }
+#[derive(Debug)]
+struct Client<'sock> {
+    id: u32,
+    addr: SocketAddr,
+    pl: Player,
+    socket: UnsafeCell<Connection<'sock>>,
+    reads: Cell<usize>,
 }
 
 fn main() -> Result<(), DirectBoxedError> {
@@ -50,34 +33,68 @@ fn main() -> Result<(), DirectBoxedError> {
             .as_secs(),
     );
 
-    let (mut b_opt, m_opt) = curseofrust_cli_parser::parse(std::env::args_os())?;
+    let Options {
+        basic: mut b_opt,
+        multiplayer: m_opt,
+        exit,
+        protocol,
+        ..
+    } = curseofrust_cli_parser::parse_to_options(std::env::args_os())?;
+    if exit {
+        return Ok(());
+    }
+
     let MultiplayerOpts::Server { port } = m_opt else {
         return Err(DirectBoxedError {
             inner: "server information is required".into(),
         });
     };
 
-    let addr = (IpAddr::from([127, 0, 0, 1]), port);
-    let mut cl: Vec<ClientRecord> = vec![];
+    let addr: SocketAddr = (
+        local_ip_address::local_ip().or_else(|_| local_ip_address::local_ipv6())?,
+        port,
+    )
+        .into();
 
-    {
-        let socket = UdpSocket::bind(addr)?;
-        socket.set_nonblocking(true)?;
-        let mut c2s_buf = [0u8; C2S_SIZE];
+    let protocol = match protocol {
+        curseofrust_cli_parser::Protocol::Tcp => Protocol::Tcp,
+        curseofrust_cli_parser::Protocol::Udp => Protocol::Udp,
+        #[cfg(feature = "ws")]
+        curseofrust_cli_parser::Protocol::WebSocket => Protocol::WebSocket,
+        _ => {
+            return Err(DirectBoxedError {
+                inner: "given protocol is not supported in this build".into(),
+            })
+        }
+    };
 
+    let handle = Handle::bind(addr, protocol)?;
+    let listener = handle.listen()?;
+
+    let mut cl: Vec<Client<'_>> = vec![];
+
+    let mut c2s_buf = [0u8; C2S_SIZE];
+
+    println!("[LOBBY] server listening on socket {}", addr);
+
+    futures_lite::future::block_on(async {
         'lobby: loop {
-            if let Ok((nread, peer_addr)) = socket.recv_from(&mut c2s_buf) {
+            let Ok((mut connection, peer)) = listener.accept().await else {
+                continue;
+            };
+            if let Ok(nread) = connection.recv(&mut c2s_buf).await {
                 if nread >= 1 && c2s_buf[0] > 0 {
-                    if !cl.iter().any(|rec| rec.addr == peer_addr) {
+                    if !cl.iter().any(|rec| rec.addr == peer) {
                         let id = cl.len() as u32;
-                        cl.push(ClientRecord {
-                            addr: peer_addr,
-                            player: Player(id + 1),
+                        cl.push(Client {
+                            addr: peer,
+                            pl: Player(id + 1),
                             id,
-                            name: DEFAULT_NAME.into(),
+                            socket: UnsafeCell::new(connection),
+                            reads: Cell::new(0),
                         });
 
-                        println!("[LOBBY] client{}@{} connected", id, peer_addr);
+                        println!("[LOBBY] client{}@{} connected", id, peer);
                     }
 
                     if cl.len() >= b_opt.clients {
@@ -91,12 +108,9 @@ fn main() -> Result<(), DirectBoxedError> {
                 }
             }
         }
-    }
+    });
 
     let st = RefCell::new(State::new(b_opt)?);
-    let socket = UdpSocket::bind(addr)?;
-    socket.connect(SocketAddrs(cl.iter().map(|client| client.addr)))?;
-    let socket = Async::new(socket)?;
     let mut time = 0i32;
     let executor = LocalExecutor::new();
 
@@ -115,72 +129,61 @@ fn main() -> Result<(), DirectBoxedError> {
                     st.simulate();
                     let data = S2CData::new(Default::default(), &st);
 
-                    executor.spawn_many(
-                        cl.iter().map(|client| {
-                            let mut data = data;
-                            data.set_player(client.player);
-                            let mut buf = [0u8; S2C_SIZE];
-                            let (msg, od) = buf
-                                .split_first_mut()
-                                .expect("the buffer should longer than one byte");
-                            *msg = curseofrust_msg::server_msg::STATE;
-                            od.copy_from_slice(bytemuck::bytes_of(&data));
-                            let socket = &socket;
-                            async move {
-                                let result = socket.send_to(&buf, client.addr).await;
-                                if let Err(e) = result {
-                                    eprintln!(
-                                        "[PLAY] error sending UDP packet to client{}@{}: {}",
-                                        client.id, client.addr, e
-                                    );
-                                }
-                            }
-                        }),
-                        &mut TaskDetacher(PhantomData),
-                    )
+                    for client in &cl {
+                        let mut data = data;
+                        data.set_player(client.pl);
+                        let mut buf = [0u8; S2C_SIZE];
+                        let (msg, od) = buf
+                            .split_first_mut()
+                            .expect("the buffer should longer than one byte");
+                        *msg = curseofrust_msg::server_msg::STATE;
+                        od.copy_from_slice(bytemuck::bytes_of(&data));
+                        let socket = &client.socket;
+                        executor
+                            .spawn(async move {
+                                let ptr = socket.get();
+                                let _ = unsafe { (*ptr).send(&buf).await };
+                            })
+                            .detach()
+                    }
                 }
             }
 
-            let recv_fut = || async {
-                let mut buf = [0u8; C2S_SIZE];
-                match socket.recv_from(&mut buf).await {
-                    Ok((C2S_SIZE, peer)) => {
-                        let Some(client) = cl.iter().find(|client| client.addr == peer) else {
-                            return;
-                        };
-                        let (&msg, od) = buf
-                            .split_first()
-                            .expect("the buffer should longer than one byte");
-                        let data: C2SData = *bytemuck::from_bytes(od);
-                        let mut st = st.borrow_mut();
-                        if let Err(e) =
-                            curseofrust_msg::apply_c2s_msg(&mut st, client.player, msg, data)
-                        {
-                            eprintln!("[PLAY] error perform action for player{}: {}", client.id, e)
-                        }
-                    }
-                    Ok((nread, peer)) => eprintln!(
-                        "[PLAY] error recv packet from {}, expected {} bytes, have {}",
-                        peer, C2S_SIZE, nread
-                    ),
-                    Err(e) => eprintln!("[PLAY] error recv packet: {}", e),
+            for client in cl.iter() {
+                let reads = client.reads.get();
+                if reads < 2 {
+                    client.reads.set(reads + 1);
+                    executor.spawn(recv_fut(client, &st)).detach();
                 }
-            };
-
-            futures_lite::future::race(timer, async {
-                let mut c = 0usize;
-                loop {
-                    if socket.readable().await.is_ok() && c <= cl.len() {
-                        executor.spawn(recv_fut()).detach();
-                        c += 1;
-                    }
-                }
-            })
-            .await;
+            }
+            timer.await;
         }
     }));
 
     Ok(())
+}
+
+async fn recv_fut(cl: &Client<'_>, st: &RefCell<State>) {
+    let mut buf = [0u8; C2S_SIZE];
+    let sptr = cl.socket.get();
+    match unsafe { (*sptr).recv(&mut buf).await } {
+        Ok(C2S_SIZE) => {
+            let (&msg, od) = buf
+                .split_first()
+                .expect("the buffer should longer than one byte");
+            let data: C2SData = *bytemuck::from_bytes(od);
+            let mut st = st.borrow_mut();
+            if let Err(e) = curseofrust_msg::apply_c2s_msg(&mut st, cl.pl, msg, data) {
+                eprintln!("[PLAY] error performing action for player{}: {}", cl.id, e)
+            }
+        }
+        Err(_) | Ok(0) => {}
+        Ok(nread) => eprintln!(
+            "[PLAY] error recv packet from client{}, expected {} bytes, have {}",
+            cl.id, C2S_SIZE, nread
+        ),
+    }
+    cl.reads.set(cl.reads.get() - 1);
 }
 
 struct DirectBoxedError {

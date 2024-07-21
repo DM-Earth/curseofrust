@@ -5,9 +5,11 @@ use cacao::{
     },
     foundation::NSUInteger,
     input::TextField,
-    listview::ListView,
-    objc::{msg_send, sel, sel_impl},
+    objc::msg_send,
 };
+
+#[cfg(feature = "high-sierra")]
+use cacao::listview::ListView;
 
 #[cfg(not(feature = "high-sierra"))]
 use {crate::app::set_font, cacao::text::Label};

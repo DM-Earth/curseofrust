@@ -364,12 +364,15 @@ fn action_persistent_greedy(king: &King, grid: &Grid, fg: &mut FlagGrid) {
                 let army = units[pl];
                 let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
                 let v = (val as f32 * (2.5 * enemy as f32 - army as f32) * (army as f32).powf(0.7))
-                    .max(
+                    .max(if enemy > army {
                         (val * (MAX_POPULATION as i32 - enemy as i32 + army as i32)) as f32
-                            * (army as f32).powf(0.7),
-                    );
+                            * (army as f32).powf(0.7)
+                            * 0.5
+                    } else {
+                        -1000.0
+                    });
 
-                if fg.is_flagged(pos) && v < 1000.0 {
+                if fg.is_flagged(pos) && v < 900.0 {
                     fg.remove(grid, pos, FLAG_POWER);
                 } else if v > 9000.0 {
                     fg.add(grid, pos, FLAG_POWER);
@@ -391,7 +394,7 @@ fn action_opportunist(king: &King, grid: &Grid, fg: &mut FlagGrid) {
                 if enemy > army
                     && (val * (MAX_POPULATION as i32 - enemy as i32 + army as i32)) as f32
                         * (army as f32).powf(0.5)
-                        > 7000.0
+                        > 5000.0
                 {
                     fg.add(grid, pos, FLAG_POWER);
                 } else {
@@ -479,7 +482,7 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
                 let v = (val * (MAX_POPULATION as i32 - (enemy as i32 - army as i32))) as f32
                     * (army as f32).sqrt();
 
-                if enemy > army && v > 7000.0 {
+                if enemy > army && v > 5000.0 {
                     pos_val.insert(pos, v as i32)
                 }
             }

@@ -55,6 +55,7 @@ impl Timeline {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct BasicOpts {
     pub keep_random: bool,
     pub difficulty: Difficulty,
@@ -97,7 +98,10 @@ pub enum MultiplayerOpts {
     Server {
         port: u16,
     },
-    Client(SocketAddr),
+    Client {
+        server: SocketAddr,
+        port: u16,
+    },
     #[default]
     None,
 }
@@ -163,14 +167,14 @@ impl State {
             .map(|i| {
                 King::new(
                     Player(i as u32 + 1),
-                    match i + b_opt.clients {
-                        1 => Strategy::Opportunist,
-                        2 => Strategy::OneGreedy,
-                        3 => Strategy::None,
-                        4 => Strategy::AggrGreedy,
-                        5 => Strategy::Noble,
-                        6 => Strategy::PersistentGreedy,
-                        _ => Default::default(),
+                    match i as isize - b_opt.clients as isize {
+                        0 => Strategy::Opportunist,
+                        1 => Strategy::OneGreedy,
+                        2 => Strategy::Midas,
+                        3 => Strategy::AggrGreedy,
+                        4 => Strategy::Noble,
+                        5 => Strategy::PersistentGreedy,
+                        _ => unreachable!(),
                     },
                     width,
                     height,

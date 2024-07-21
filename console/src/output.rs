@@ -61,124 +61,140 @@ fn pop_to_symbol(pop: u16) -> &'static str {
     }
 }
 
-pub(crate) fn draw_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Error> {
-    for y in 0..st.s.grid.height() {
-        queue!(st.out, cursor::MoveTo(1, y as u16 + 1))?;
-        if y % 2 == 0 {
-            queue!(st.out, style::Print("  "))?;
-        }
+#[inline(always)]
+pub(crate) fn draw_all_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Error> {
+    draw_grid::<W, [_; 0]>(st, None)
+}
 
-        for x in 0..st.s.grid.width() {
-            queue!(
-                st.out,
-                cursor::MoveTo(
-                    ((x * 4 + y * 2 + 1) as i16 - st.ui.xskip as i16 * 4).max(0) as u16,
-                    y as u16 + 1
-                )
-            )?;
-            let pos = Pos(x as i32, y as i32);
-            let Some(tile) = st.s.grid.tile(pos) else {
-                break;
-            };
-            macro_rules! cursor {
-                () => {
-                    let l_sym = if pos == st.ui.cursor {
-                        '('
-                    } else if Pos(x as i32 - 1, y as i32) == st.ui.cursor {
-                        ')'
-                    } else {
-                        ' '
-                    };
-                    queue!(
-                        st.out,
-                        style::PrintStyledContent(StyledContent::new(
-                            ContentStyle {
-                                attributes: style::Attribute::Bold.into(),
-                                ..Default::default()
-                            },
-                            l_sym
-                        ))
-                    )?;
+pub(crate) fn draw_grid<W: Write, I>(
+    st: &mut State<W>,
+    tiles: Option<I>,
+) -> Result<(), std::io::Error>
+where
+    I: IntoIterator<Item = Pos>,
+{
+    let iter: &mut dyn Iterator<Item = Pos>;
+
+    let h = st.s.grid.height();
+    let w = st.s.grid.width();
+    let mut tiles = tiles.map(|poss| {
+        poss.into_iter()
+            .filter(|&Pos(x, y)| x < w as i32 && y < h as i32)
+    });
+    let mut tiles_all = (0..h).flat_map(|y| (0..w).map(move |x| Pos(x as i32, y as i32)));
+    iter = if let Some(ref mut it) = tiles {
+        it
+    } else {
+        &mut tiles_all
+    };
+
+    for Pos(x, y) in iter {
+        queue!(
+            st.out,
+            cursor::MoveTo(
+                ((x * 4 + y * 2 + 1) as i16 - st.ui.xskip as i16 * 4).max(0) as u16,
+                y as u16 + 1
+            )
+        )?;
+        let pos = Pos(x as i32, y as i32);
+        let Some(tile) = st.s.grid.tile(pos) else {
+            break;
+        };
+        macro_rules! cursor {
+            () => {
+                let l_sym = if pos == st.ui.cursor {
+                    '['
+                } else if Pos(x as i32 - 1, y as i32) == st.ui.cursor {
+                    ']'
+                } else {
+                    ' '
                 };
+                queue!(
+                    st.out,
+                    style::PrintStyledContent(StyledContent::new(
+                        ContentStyle {
+                            attributes: style::Attribute::Bold.into(),
+                            ..Default::default()
+                        },
+                        l_sym
+                    ))
+                )?;
+            };
+        }
+        match tile {
+            curseofrust::grid::Tile::Void => {
+                cursor!();
+                queue!(st.out, style::Print("   "))?;
             }
-            match tile {
-                curseofrust::grid::Tile::Void => {
-                    cursor!();
-                    queue!(st.out, style::Print("   "))?;
-                }
-                curseofrust::grid::Tile::Mountain => {
-                    cursor!();
-                    queue! {
-                        st.out,
-                        style::PrintStyledContent(StyledContent::new(
-                            ContentStyle {
-                                foreground_color: Some(Color::Green),
-                                ..Default::default()
-                            },
-                            MOUNTAIN,
-                        ))
-                    }?;
-                }
-                curseofrust::grid::Tile::Mine(owner) => {
-                    cursor!();
-                    queue!(
-                        st.out,
-                        style::PrintStyledContent(StyledContent::new(
-                            ContentStyle {
-                                foreground_color: Some(Color::Green),
-                                ..Default::default()
-                            },
-                            &MINE[0..1],
-                        )),
-                        style::PrintStyledContent(StyledContent::new(
-                            ContentStyle {
-                                foreground_color: Some(Color::Yellow),
-                                ..player_style(*owner)
-                            },
-                            &MINE[1..2],
-                        )),
-                        style::PrintStyledContent(StyledContent::new(
-                            ContentStyle {
-                                foreground_color: Some(Color::Green),
-                                ..Default::default()
-                            },
-                            &MINE[2..3],
-                        )),
-                    )?;
-                }
-                curseofrust::grid::Tile::Habitable { land, units, owner } => {
-                    cursor!();
+            curseofrust::grid::Tile::Mountain => {
+                cursor!();
+                queue! {
+                    st.out,
+                    style::PrintStyledContent(StyledContent::new(
+                        ContentStyle {
+                            foreground_color: Some(Color::Green),
+                            ..Default::default()
+                        },
+                        MOUNTAIN,
+                    ))
+                }?;
+            }
+            curseofrust::grid::Tile::Mine(owner) => {
+                cursor!();
+                queue!(
+                    st.out,
+                    style::PrintStyledContent(StyledContent::new(
+                        ContentStyle {
+                            foreground_color: Some(Color::Green),
+                            ..Default::default()
+                        },
+                        &MINE[0..1],
+                    )),
+                    style::PrintStyledContent(StyledContent::new(
+                        ContentStyle {
+                            foreground_color: Some(Color::Yellow),
+                            ..player_style(*owner)
+                        },
+                        &MINE[1..2],
+                    )),
+                    style::PrintStyledContent(StyledContent::new(
+                        ContentStyle {
+                            foreground_color: Some(Color::Green),
+                            ..Default::default()
+                        },
+                        &MINE[2..3],
+                    )),
+                )?;
+            }
+            curseofrust::grid::Tile::Habitable { land, units, owner } => {
+                cursor!();
 
-                    let symbol = match land {
-                        curseofrust::grid::HabitLand::Grassland => {
-                            pop_to_symbol(units.iter().sum())
-                        }
-                        curseofrust::grid::HabitLand::Village => VILLAGE,
-                        curseofrust::grid::HabitLand::Town => TOWN,
-                        curseofrust::grid::HabitLand::Fortress => FORTRESS,
-                    };
-                    let style = player_style(*owner);
-                    let l = if let Some(p) = st
-                        .s
-                        .fgs
+                let symbol = match land {
+                    curseofrust::grid::HabitLand::Grassland => pop_to_symbol(units.iter().sum()),
+                    curseofrust::grid::HabitLand::Village => VILLAGE,
+                    curseofrust::grid::HabitLand::Town => TOWN,
+                    curseofrust::grid::HabitLand::Fortress => FORTRESS,
+                };
+                let style = player_style(*owner);
+                let l = if let Some(p) =
+                    st.s.fgs
                         .iter()
                         .enumerate()
                         .find(|(p, fg)| fg.is_flagged(pos) && Player(*p as u32) != st.s.controlled)
                         .map(|(p, _)| Player(p as u32))
-                    {
-                        style::PrintStyledContent(StyledContent::new(player_style(p), "x"))
-                    } else {
-                        style::PrintStyledContent(StyledContent::new(style, &symbol[0..1]))
-                    };
-                    let m = style::PrintStyledContent(StyledContent::new(style, &symbol[1..2]));
-                    let r = if st.s.fgs[st.s.controlled.0 as usize].is_flagged(pos) {
-                        style::PrintStyledContent(StyledContent::new(Default::default(), "P"))
-                    } else {
-                        style::PrintStyledContent(StyledContent::new(style, &symbol[2..3]))
-                    };
+                {
+                    style::PrintStyledContent(StyledContent::new(player_style(p), "x"))
+                } else {
+                    style::PrintStyledContent(StyledContent::new(style, &symbol[0..1]))
+                };
+                let m = style::PrintStyledContent(StyledContent::new(style, &symbol[1..2]));
+                let r = if st.s.fgs[st.s.controlled.0 as usize].is_flagged(pos) {
+                    style::PrintStyledContent(StyledContent::new(Default::default(), "P"))
+                } else {
+                    style::PrintStyledContent(StyledContent::new(style, &symbol[2..3]))
+                };
 
-                    queue!(st.out, l, m, r)?;
-                }
+                queue!(st.out, l, m, r)?;
             }
         }
     }
