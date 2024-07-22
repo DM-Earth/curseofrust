@@ -1,4 +1,4 @@
-use std::ops::ControlFlow;
+use std::ops::{ControlFlow, DerefMut};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind},
@@ -26,33 +26,36 @@ pub(crate) trait Client {
     fn toggle_pause<W>(&mut self, st: &mut State<W>) -> Result<(), Self::Error>;
 }
 
-pub(crate) async fn accept<W>(
-    st: &mut State<W>,
+pub(crate) async fn accept<W, S>(
+    s: impl FnOnce() -> S,
     ct_events: &mut crossterm::event::EventStream,
     mut client: impl Client,
 ) -> Result<ControlFlow<()>, DirectBoxedError>
 where
     W: std::io::Write,
+    S: DerefMut<Target = State<W>>,
 {
-    let cursor = st.ui.cursor;
-    macro_rules! cupd {
-        () => {
-            if st.ui.cursor == cursor {
-                output::draw_grid(st, Some([cursor, Pos(cursor.0 + 1, cursor.1)]))?;
-            } else {
-                output::draw_grid(
-                    st,
-                    Some([
-                        cursor,
-                        Pos(cursor.0 + 1, cursor.1),
-                        st.ui.cursor,
-                        Pos(st.ui.cursor.0 + 1, st.ui.cursor.1),
-                    ]),
-                )?;
-            }
-        };
-    }
     if let Ok(Some(event)) = ct_events.try_next().await {
+        let mut stt = s();
+        let st = &mut (*stt);
+        let cursor = st.ui.cursor;
+        macro_rules! cupd {
+            () => {
+                if st.ui.cursor == cursor {
+                    output::draw_grid(st, Some([cursor, Pos(cursor.0 + 1, cursor.1)]))?;
+                } else {
+                    output::draw_grid(
+                        st,
+                        Some([
+                            cursor,
+                            Pos(cursor.0 + 1, cursor.1),
+                            st.ui.cursor,
+                            Pos(st.ui.cursor.0 + 1, st.ui.cursor.1),
+                        ]),
+                    )?;
+                }
+            };
+        }
         macro_rules! pc {
             ($e:expr) => {
                 $e.map_err(DirectBoxedError::from)

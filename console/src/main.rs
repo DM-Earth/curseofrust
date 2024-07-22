@@ -1,4 +1,5 @@
 use std::{
+    convert::Infallible,
     fmt::Debug,
     io::Write,
     ops::ControlFlow,
@@ -100,7 +101,7 @@ struct State<W> {
 struct SingleplayerClient;
 
 impl control::Client for SingleplayerClient {
-    type Error = curseofrust::Error;
+    type Error = Infallible;
 
     #[inline(always)]
     fn quit<W>(&mut self, _st: &mut State<W>) -> Result<(), Self::Error> {
@@ -199,7 +200,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
         st.out.flush()?;
 
         let cond = futures_lite::future::block_on(futures_lite::future::or(
-            control::accept(st, &mut events, SingleplayerClient),
+            control::accept(|| &mut *st, &mut events, SingleplayerClient),
             async {
                 timer.await;
                 Result::<ControlFlow<(), ()>, DirectBoxedError>::Ok(ControlFlow::Continue(()))

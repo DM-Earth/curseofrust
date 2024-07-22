@@ -2,26 +2,114 @@
 
 use std::{
     cell::{RefCell, UnsafeCell},
+    convert::Infallible,
     io::Write,
     net::SocketAddr,
-    ops::ControlFlow,
+    ops::{ControlFlow, Deref, DerefMut},
 };
 
-use crossterm::{
-    cursor,
-    event::{KeyCode, KeyEvent},
-    execute, queue, terminal,
-};
-use curseofrust::{grid::Tile, Pos, Speed};
-use curseofrust_msg::{bytemuck, C2SData, S2CData, C2S_SIZE, S2C_SIZE};
-use curseofrust_net_foundation::{Handle, Protocol};
-use futures_lite::StreamExt as _;
+use async_executor::LocalExecutor;
+use crossterm::{cursor, execute, terminal};
+use curseofrust::Pos;
+use curseofrust_msg::{bytemuck, client_msg::*, C2SData, S2CData, C2S_SIZE, S2C_SIZE};
+use curseofrust_net_foundation::{Connection, Handle, Protocol};
 use local_ip_address::{local_ip, local_ipv6};
 
-use crate::{DirectBoxedError, State};
+use crate::{control, DirectBoxedError, State};
+
+#[derive(Copy, Clone)]
+struct MultiplayerClient<'env> {
+    executor: *const LocalExecutor<'env>,
+    socket: *const UnsafeCell<Connection<'env>>,
+}
+
+impl MultiplayerClient<'_> {
+    fn send_with_info(&self, cursor: Pos, msg: u8, info: u8) {
+        let data: C2SData = (cursor, info).into();
+        let mut buf = [0u8; C2S_SIZE];
+        let (m, d) = buf
+            .split_first_mut()
+            .expect("the buffer should longer than one byte");
+        *m = msg;
+        d.copy_from_slice(bytemuck::bytes_of(&data));
+        unsafe {
+            let socket = &mut (*UnsafeCell::raw_get(self.socket));
+            (*self.executor)
+                .spawn(async move {
+                    let _ = socket.send(&buf).await;
+                })
+                .detach();
+        }
+    }
+
+    #[inline]
+    fn send(&self, cursor: Pos, msg: u8) {
+        self.send_with_info(cursor, msg, 0u8)
+    }
+}
+
+impl<'env> control::Client for MultiplayerClient<'env> {
+    type Error = Infallible;
+
+    #[inline(always)]
+    fn quit<W>(&mut self, _st: &mut State<W>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn toggle_flag<W>(&mut self, st: &mut State<W>, pos: Pos) -> Result<(), Self::Error> {
+        if st
+            .s
+            .grid
+            .tile(st.ui.cursor)
+            .is_some_and(|t| t.is_habitable())
+        {
+            let fg = &st.s.fgs[st.s.controlled.0 as usize];
+            if fg.is_flagged(st.ui.cursor) {
+                self.send(pos, FLAG_OFF);
+            } else {
+                self.send(pos, FLAG_ON);
+            }
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn rm_all_flag<W>(&mut self, _st: &mut State<W>) -> Result<(), Self::Error> {
+        self.send(Pos::default(), FLAG_OFF_ALL);
+        Ok(())
+    }
+
+    #[inline]
+    fn rm_half_flag<W>(&mut self, _st: &mut State<W>) -> Result<(), Self::Error> {
+        self.send(Pos::default(), FLAG_OFF_HALF);
+        Ok(())
+    }
+
+    #[inline]
+    fn build<W>(&mut self, _st: &mut State<W>, pos: Pos) -> Result<(), Self::Error> {
+        self.send(pos, BUILD);
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn faster<W>(&mut self, _st: &mut State<W>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn slower<W>(&mut self, _st: &mut State<W>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    #[inline]
+    fn toggle_pause<W>(&mut self, _st: &mut State<W>) -> Result<(), Self::Error> {
+        self.send(Pos::default(), PAUSE);
+        Ok(())
+    }
+}
 
 pub(crate) fn run<W: Write>(
-    mut st: &mut State<W>,
+    st: &mut State<W>,
     server: SocketAddr,
     port: u16,
     protocol: curseofrust_cli_parser::Protocol,
@@ -59,7 +147,26 @@ pub(crate) fn run<W: Write>(
     let mut init = false;
 
     {
-        let st = RefCell::new(&mut st);
+        #[repr(transparent)]
+        struct WrappingCell<'a, T>(std::cell::RefMut<'a, T>);
+
+        impl<'a, T> Deref for WrappingCell<'a, &'a mut T> {
+            type Target = T;
+
+            #[inline(always)]
+            fn deref(&self) -> &Self::Target {
+                &**self.0
+            }
+        }
+
+        impl<'a, T> DerefMut for WrappingCell<'a, &'a mut T> {
+            #[inline(always)]
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut **self.0
+            }
+        }
+
+        let st = RefCell::new(&mut *st);
         let mut events = crossterm::event::EventStream::new();
 
         futures_lite::future::block_on(executor.run(async {
@@ -100,7 +207,7 @@ pub(crate) fn run<W: Write>(
                     let data: S2CData = *bytemuck::from_bytes(data);
                     if msg == curseofrust_msg::server_msg::STATE {
                         let mut st_guard = st.borrow_mut();
-                        let st = &mut ***st_guard;
+                        let st = &mut **st_guard;
                         curseofrust_msg::apply_s2c_msg(&mut st.s, data)?;
                         crate::output::draw_all_grid(st)?;
                         Ok(true)
@@ -109,130 +216,18 @@ pub(crate) fn run<W: Write>(
                     }
                 };
 
+                let client = MultiplayerClient {
+                    executor: &executor,
+                    socket: &socket,
+                };
+
                 let recv_input = async {
                     loop {
-                        if let Ok(Some(event)) = events.try_next().await {
-                            let mut st_guard = st.borrow_mut();
-                            let st = &mut ***st_guard;
-                            match event {
-                                crossterm::event::Event::Key(KeyEvent {
-                                    code,
-                                    modifiers: _,
-                                    kind,
-                                    state: _,
-                                }) => {
-                                    let cursor = st.ui.cursor;
-                                    if !matches!(kind, crossterm::event::KeyEventKind::Release) {
-                                        macro_rules! msg_send {
-                                            ($msg:ident, $info:expr) => {{
-                                                let data: C2SData = (st.ui.cursor, $info).into();
-                                                let mut buf = [0u8; C2S_SIZE];
-                                                let (msg, d) = buf.split_first_mut().expect(
-                                                    "the buffer should longer than one byte",
-                                                );
-                                                *msg = curseofrust_msg::client_msg::$msg;
-                                                d.copy_from_slice(bytemuck::bytes_of(&data));
-                                                let socket = &socket;
-                                                unsafe {
-                                                    executor
-                                                        .spawn(async move {
-                                                            let _ =
-                                                                (*socket.get()).send(&buf).await;
-                                                        })
-                                                        .detach();
-                                                }
-                                            }};
-                                            ($msg:ident) => {
-                                                msg_send!($msg, 0)
-                                            };
-                                        }
-
-                                        let cursor_x_shift =
-                                            if st.ui.cursor.1 % 2 == 0 { 0 } else { 1 };
-                                        match code {
-                                            KeyCode::Up | KeyCode::Char('k') => {
-                                                st.ui.cursor.1 -= 1;
-                                                st.ui.cursor.0 += cursor_x_shift;
-                                            }
-                                            KeyCode::Down | KeyCode::Char('j') => {
-                                                st.ui.cursor.1 += 1;
-                                                st.ui.cursor.0 += cursor_x_shift - 1;
-                                            }
-                                            KeyCode::Left | KeyCode::Char('h') => {
-                                                st.ui.cursor.0 -= 1;
-                                            }
-                                            KeyCode::Right | KeyCode::Char('l') => {
-                                                st.ui.cursor.0 += 1;
-                                            }
-
-                                            KeyCode::Char('q') => {
-                                                return Result::<
-                                                        ControlFlow<()>,
-                                                        DirectBoxedError,
-                                                    >::Ok(
-                                                        ControlFlow::Break(())
-                                                    );
-                                            }
-
-                                            KeyCode::Char(' ') => {
-                                                if st
-                                                    .s
-                                                    .grid
-                                                    .tile(st.ui.cursor)
-                                                    .is_some_and(|t| t.is_habitable())
-                                                {
-                                                    let fg = &st.s.fgs[st.s.controlled.0 as usize];
-                                                    if fg.is_flagged(st.ui.cursor) {
-                                                        msg_send!(FLAG_OFF);
-                                                    } else {
-                                                        msg_send!(FLAG_ON);
-                                                    }
-                                                }
-                                            }
-                                            KeyCode::Char('x') => msg_send!(FLAG_OFF_ALL),
-                                            KeyCode::Char('c') => msg_send!(FLAG_OFF_HALF),
-                                            KeyCode::Char('r') | KeyCode::Char('v') => {
-                                                msg_send!(BUILD)
-                                            }
-
-                                            KeyCode::Char('p') => {
-                                                if st.s.speed == Speed::Pause {
-                                                    msg_send!(UNPAUSE)
-                                                } else {
-                                                    msg_send!(PAUSE)
-                                                }
-                                            }
-
-                                            _ => {}
-                                        }
-                                    }
-                                    if !st.s.grid.tile(st.ui.cursor).is_some_and(Tile::is_visible) {
-                                        st.ui.cursor = cursor;
-                                    }
-
-                                    if st.ui.cursor == cursor {
-                                        crate::output::draw_grid(
-                                            st,
-                                            Some([cursor, Pos(cursor.0 + 1, cursor.1)]),
-                                        )?;
-                                    } else {
-                                        crate::output::draw_grid(
-                                            st,
-                                            Some([
-                                                cursor,
-                                                Pos(cursor.0 + 1, cursor.1),
-                                                st.ui.cursor,
-                                                Pos(st.ui.cursor.0 + 1, st.ui.cursor.1),
-                                            ]),
-                                        )?;
-                                    }
-                                }
-                                crossterm::event::Event::Resize(_, _) => {
-                                    queue!(st.out, terminal::Clear(terminal::ClearType::All))?;
-                                    crate::output::draw_all_grid(st)?;
-                                }
-                                _ => {}
-                            }
+                        if let Ok(ControlFlow::Break(_)) =
+                            control::accept(|| WrappingCell(st.borrow_mut()), &mut events, client)
+                                .await
+                        {
+                            return Ok(ControlFlow::Break(()));
                         }
                     }
                 };
