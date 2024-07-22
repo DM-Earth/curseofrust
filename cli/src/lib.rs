@@ -34,8 +34,8 @@ pub enum Protocol {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum ControlMode {
-    /// Control mode designed for touchscreen gestures.
-    Touchscreen,
+    /// Control mode designed for termux.
+    Termux,
     /// Pure-keyboard controlling. Same as curseofwar.
     #[default]
     Keyboard,
@@ -69,13 +69,13 @@ impl std::str::FromStr for ControlMode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
-            "touchscreen" | "touch" => Self::Touchscreen,
+            "termux" => Self::Termux,
             "keyboard" => Self::Keyboard,
             "hybrid" => Self::Hybrid,
             _ => {
                 return Err(Error::UnknownVariant {
                     ty: "control_mode",
-                    variants: &["touchscreen", "touch", "keyboard", "hybrid"],
+                    variants: &["termux", "keyboard", "hybrid"],
                     value: s.to_owned(),
                 })
             }
