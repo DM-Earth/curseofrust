@@ -5,16 +5,12 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use crossterm::{
-    cursor,
-    event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind},
-    execute, queue, terminal,
-};
-use curseofrust::{grid::Tile, Pos, Speed, FLAG_POWER};
-use curseofrust_cli_parser::Options;
-use futures_lite::StreamExt;
+use crossterm::{cursor, execute, terminal};
+use curseofrust::{Pos, Speed, FLAG_POWER};
+use curseofrust_cli_parser::{ControlMode, Options};
 
 mod client;
+mod control;
 mod output;
 
 const DURATION: Duration = Duration::from_millis(10);
@@ -32,6 +28,7 @@ fn main() -> Result<(), DirectBoxedError> {
         multiplayer: m_opt,
         exit,
         protocol,
+        control_mode,
         ..
     } = curseofrust_cli_parser::parse_to_options(std::env::args_os())?;
     if exit {
@@ -43,6 +40,7 @@ fn main() -> Result<(), DirectBoxedError> {
     let mut st = State {
         ui: curseofrust::state::UI::new(&state),
         s: state,
+        control: control_mode,
         out: stdout,
     };
 
@@ -95,7 +93,75 @@ type BoxedError = Box<dyn std::error::Error>;
 struct State<W> {
     s: curseofrust::state::State,
     ui: curseofrust::state::UI,
+    control: ControlMode,
     out: W,
+}
+
+struct SingleplayerClient;
+
+impl control::Client for SingleplayerClient {
+    type Error = curseofrust::Error;
+
+    #[inline(always)]
+    fn quit<W>(&mut self, _st: &mut State<W>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    #[inline]
+    fn toggle_flag<W>(&mut self, st: &mut State<W>, pos: Pos) -> Result<(), Self::Error> {
+        if st.s.grid.tile(pos).is_some_and(|t| t.is_habitable()) {
+            let fg = &mut st.s.fgs[st.s.controlled.0 as usize];
+            if fg.is_flagged(st.ui.cursor) {
+                fg.remove(&st.s.grid, st.ui.cursor, FLAG_POWER);
+            } else {
+                fg.add(&st.s.grid, st.ui.cursor, FLAG_POWER);
+            }
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn rm_all_flag<W>(&mut self, st: &mut State<W>) -> Result<(), Self::Error> {
+        st.s.fgs[st.s.controlled.0 as usize].remove_with_prob(&st.s.grid, 1.0);
+        Ok(())
+    }
+
+    #[inline]
+    fn rm_half_flag<W>(&mut self, st: &mut State<W>) -> Result<(), Self::Error> {
+        st.s.fgs[st.s.controlled.0 as usize].remove_with_prob(&st.s.grid, 0.5);
+        Ok(())
+    }
+
+    #[inline]
+    fn build<W>(&mut self, st: &mut State<W>, pos: Pos) -> Result<(), Self::Error> {
+        let _ =
+            st.s.grid
+                .build(&mut st.s.countries[st.s.controlled.0 as usize], pos);
+        Ok(())
+    }
+
+    #[inline]
+    fn faster<W>(&mut self, st: &mut State<W>) -> Result<(), Self::Error> {
+        st.s.speed = st.s.speed.faster();
+        Ok(())
+    }
+
+    #[inline]
+    fn slower<W>(&mut self, st: &mut State<W>) -> Result<(), Self::Error> {
+        st.s.speed = st.s.speed.slower();
+        Ok(())
+    }
+
+    #[inline]
+    fn toggle_pause<W>(&mut self, st: &mut State<W>) -> Result<(), Self::Error> {
+        if st.s.speed == Speed::Pause {
+            st.s.speed = st.s.prev_speed;
+        } else {
+            st.s.prev_speed = st.s.speed;
+            st.s.speed = Speed::Pause
+        }
+        Ok(())
+    }
 }
 
 fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
@@ -104,9 +170,12 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
     execute!(
         st.out,
         terminal::Clear(terminal::ClearType::All),
-        crossterm::event::EnableMouseCapture,
         cursor::Hide
     )?;
+
+    if matches!(st.control, ControlMode::Termux | ControlMode::Hybrid) {
+        execute!(st.out, crossterm::event::EnableMouseCapture)?;
+    }
 
     let mut time = 0i32;
     let mut events = crossterm::event::EventStream::new();
@@ -130,154 +199,10 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
         st.out.flush()?;
 
         let cond = futures_lite::future::block_on(futures_lite::future::or(
-            async {
-                loop {
-                    let cursor = st.ui.cursor;
-                    macro_rules! cupd {
-                        () => {
-                            if st.ui.cursor == cursor {
-                                output::draw_grid(st, Some([cursor, Pos(cursor.0 + 1, cursor.1)]))?;
-                            } else {
-                                output::draw_grid(
-                                    st,
-                                    Some([
-                                        cursor,
-                                        Pos(cursor.0 + 1, cursor.1),
-                                        st.ui.cursor,
-                                        Pos(st.ui.cursor.0 + 1, st.ui.cursor.1),
-                                    ]),
-                                )?;
-                            }
-                        };
-                    }
-                    if let Ok(Some(event)) = events.try_next().await {
-                        match event {
-                            crossterm::event::Event::Key(KeyEvent {
-                                code,
-                                modifiers: _,
-                                kind,
-                                state: _,
-                            }) => {
-                                let cursor = st.ui.cursor;
-                                if !matches!(kind, crossterm::event::KeyEventKind::Release) {
-                                    let cursor_x_shift =
-                                        if st.ui.cursor.1 % 2 == 0 { 0 } else { 1 };
-                                    match code {
-                                        KeyCode::Up | KeyCode::Char('k') => {
-                                            st.ui.cursor.1 -= 1;
-                                            st.ui.cursor.0 += cursor_x_shift;
-                                        }
-                                        KeyCode::Down | KeyCode::Char('j') => {
-                                            st.ui.cursor.1 += 1;
-                                            st.ui.cursor.0 += cursor_x_shift - 1;
-                                        }
-                                        KeyCode::Left | KeyCode::Char('h') => {
-                                            st.ui.cursor.0 -= 1;
-                                        }
-                                        KeyCode::Right | KeyCode::Char('l') => {
-                                            st.ui.cursor.0 += 1;
-                                        }
-
-                                        KeyCode::Char('q') => {
-                                            return Ok(ControlFlow::Break(()));
-                                        }
-
-                                        KeyCode::Char(' ') => {
-                                            if st
-                                                .s
-                                                .grid
-                                                .tile(st.ui.cursor)
-                                                .is_some_and(|t| t.is_habitable())
-                                            {
-                                                let fg = &mut st.s.fgs[st.s.controlled.0 as usize];
-                                                if fg.is_flagged(st.ui.cursor) {
-                                                    fg.remove(&st.s.grid, st.ui.cursor, FLAG_POWER);
-                                                } else {
-                                                    fg.add(&st.s.grid, st.ui.cursor, FLAG_POWER);
-                                                }
-                                            }
-                                        }
-                                        KeyCode::Char('x') => {
-                                            st.s.fgs[st.s.controlled.0 as usize]
-                                                .remove_with_prob(&st.s.grid, 1.0);
-                                            output::draw_all_grid(st)?;
-                                        }
-                                        KeyCode::Char('c') => {
-                                            st.s.fgs[st.s.controlled.0 as usize]
-                                                .remove_with_prob(&st.s.grid, 0.5);
-                                            output::draw_all_grid(st)?;
-                                        }
-                                        KeyCode::Char('r') | KeyCode::Char('v') => {
-                                            let _ = st.s.grid.build(
-                                                &mut st.s.countries[st.s.controlled.0 as usize],
-                                                st.ui.cursor,
-                                            );
-                                        }
-
-                                        KeyCode::Char('f') => st.s.speed = st.s.speed.faster(),
-                                        KeyCode::Char('s') => st.s.speed = st.s.speed.slower(),
-                                        KeyCode::Char('p') => {
-                                            if st.s.speed == Speed::Pause {
-                                                st.s.speed = st.s.prev_speed;
-                                            } else {
-                                                st.s.prev_speed = st.s.speed;
-                                                st.s.speed = Speed::Pause
-                                            }
-                                        }
-
-                                        _ => {}
-                                    }
-                                }
-                                if !st.s.grid.tile(st.ui.cursor).is_some_and(Tile::is_visible) {
-                                    st.ui.cursor = cursor;
-                                }
-
-                                cupd!()
-                            }
-                            crossterm::event::Event::Mouse(MouseEvent {
-                                kind,
-                                column,
-                                row,
-                                modifiers: _,
-                            }) => {
-                                // unreachable!("{kind:?}");
-                                let pos = output::rev_pos(column, row, &st.ui);
-                                match (kind, pos) {
-                                    (MouseEventKind::Down(MouseButton::Left), Some(pos)) => {
-                                        if pos == cursor {
-                                            if st
-                                                .s
-                                                .grid
-                                                .tile(st.ui.cursor)
-                                                .is_some_and(|t| t.is_habitable())
-                                            {
-                                                let fg = &mut st.s.fgs[st.s.controlled.0 as usize];
-                                                if fg.is_flagged(st.ui.cursor) {
-                                                    fg.remove(&st.s.grid, st.ui.cursor, FLAG_POWER);
-                                                } else {
-                                                    fg.add(&st.s.grid, st.ui.cursor, FLAG_POWER);
-                                                }
-                                            }
-                                        } else {
-                                            st.ui.adjust_cursor(&st.s, pos);
-                                        }
-                                        cupd!()
-                                    }
-                                    _ => {}
-                                }
-                            }
-                            crossterm::event::Event::Resize(_, _) => {
-                                queue!(st.out, terminal::Clear(terminal::ClearType::All))?;
-                                output::draw_all_grid(st)?;
-                            }
-                            _ => (),
-                        }
-                    }
-                }
-            },
+            control::accept(st, &mut events, SingleplayerClient),
             async {
                 timer.await;
-                Result::<_, std::io::Error>::Ok(ControlFlow::Continue(()))
+                Result::<ControlFlow<(), ()>, DirectBoxedError>::Ok(ControlFlow::Continue(()))
             },
         ))?;
 
