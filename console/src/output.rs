@@ -7,7 +7,7 @@ use crossterm::{
     style::{self, Attribute, Color, ContentStyle, StyledContent},
     terminal::{self, ClearType},
 };
-use curseofrust::{Player, Pos};
+use curseofrust::{state::UI, Player, Pos};
 
 use crate::State;
 
@@ -64,6 +64,18 @@ fn pop_to_symbol(pop: u16) -> &'static str {
 #[inline(always)]
 pub(crate) fn draw_all_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::Error> {
     draw_grid::<W, [_; 0]>(st, None)
+}
+
+pub(crate) fn rev_pos(x: u16, y: u16, ui: &UI) -> Option<Pos> {
+    let x = x as i32;
+    let y = y as i32 - 1;
+    let xskip = ui.xskip as i32;
+    let x1 = (x + 4 * xskip - 2 * y - 1) / 4;
+    if x1 >= 0 {
+        Some(Pos(x1, y))
+    } else {
+        None
+    }
 }
 
 pub(crate) fn draw_grid<W: Write, I>(

@@ -7,7 +7,7 @@ use std::{
 
 use crossterm::{
     cursor,
-    event::{KeyCode, KeyEvent},
+    event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind},
     execute, queue, terminal,
 };
 use curseofrust::{grid::Tile, Pos, Speed, FLAG_POWER};
@@ -104,6 +104,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
     execute!(
         st.out,
         terminal::Clear(terminal::ClearType::All),
+        crossterm::event::EnableMouseCapture,
         cursor::Hide
     )?;
 
@@ -131,6 +132,24 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
         let cond = futures_lite::future::block_on(futures_lite::future::or(
             async {
                 loop {
+                    let cursor = st.ui.cursor;
+                    macro_rules! cupd {
+                        () => {
+                            if st.ui.cursor == cursor {
+                                output::draw_grid(st, Some([cursor, Pos(cursor.0 + 1, cursor.1)]))?;
+                            } else {
+                                output::draw_grid(
+                                    st,
+                                    Some([
+                                        cursor,
+                                        Pos(cursor.0 + 1, cursor.1),
+                                        st.ui.cursor,
+                                        Pos(st.ui.cursor.0 + 1, st.ui.cursor.1),
+                                    ]),
+                                )?;
+                            }
+                        };
+                    }
                     if let Ok(Some(event)) = events.try_next().await {
                         match event {
                             crossterm::event::Event::Key(KeyEvent {
@@ -178,10 +197,16 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                                                 }
                                             }
                                         }
-                                        KeyCode::Char('x') => st.s.fgs[st.s.controlled.0 as usize]
-                                            .remove_with_prob(&st.s.grid, 1.0),
-                                        KeyCode::Char('c') => st.s.fgs[st.s.controlled.0 as usize]
-                                            .remove_with_prob(&st.s.grid, 0.5),
+                                        KeyCode::Char('x') => {
+                                            st.s.fgs[st.s.controlled.0 as usize]
+                                                .remove_with_prob(&st.s.grid, 1.0);
+                                            output::draw_all_grid(st)?;
+                                        }
+                                        KeyCode::Char('c') => {
+                                            st.s.fgs[st.s.controlled.0 as usize]
+                                                .remove_with_prob(&st.s.grid, 0.5);
+                                            output::draw_all_grid(st)?;
+                                        }
                                         KeyCode::Char('r') | KeyCode::Char('v') => {
                                             let _ = st.s.grid.build(
                                                 &mut st.s.countries[st.s.controlled.0 as usize],
@@ -207,21 +232,38 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
                                     st.ui.cursor = cursor;
                                 }
 
-                                if st.ui.cursor == cursor {
-                                    output::draw_grid(
-                                        st,
-                                        Some([cursor, Pos(cursor.0 + 1, cursor.1)]),
-                                    )?;
-                                } else {
-                                    output::draw_grid(
-                                        st,
-                                        Some([
-                                            cursor,
-                                            Pos(cursor.0 + 1, cursor.1),
-                                            st.ui.cursor,
-                                            Pos(st.ui.cursor.0 + 1, st.ui.cursor.1),
-                                        ]),
-                                    )?;
+                                cupd!()
+                            }
+                            crossterm::event::Event::Mouse(MouseEvent {
+                                kind,
+                                column,
+                                row,
+                                modifiers: _,
+                            }) => {
+                                // unreachable!("{kind:?}");
+                                let pos = output::rev_pos(column, row, &st.ui);
+                                match (kind, pos) {
+                                    (MouseEventKind::Down(MouseButton::Left), Some(pos)) => {
+                                        if pos == cursor {
+                                            if st
+                                                .s
+                                                .grid
+                                                .tile(st.ui.cursor)
+                                                .is_some_and(|t| t.is_habitable())
+                                            {
+                                                let fg = &mut st.s.fgs[st.s.controlled.0 as usize];
+                                                if fg.is_flagged(st.ui.cursor) {
+                                                    fg.remove(&st.s.grid, st.ui.cursor, FLAG_POWER);
+                                                } else {
+                                                    fg.add(&st.s.grid, st.ui.cursor, FLAG_POWER);
+                                                }
+                                            }
+                                        } else {
+                                            st.ui.adjust_cursor(&st.s, pos);
+                                        }
+                                        cupd!()
+                                    }
+                                    _ => {}
                                 }
                             }
                             crossterm::event::Event::Resize(_, _) => {
