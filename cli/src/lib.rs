@@ -350,6 +350,9 @@ _/ /  \/ | |X _/ __/ __\  /   \   /  | |___| | | |  / __/_  __/
 -c port
   Clients's port (19150 is default).
 
+-m [keyboard|termux|hybrid]
+  Control method.
+
 -v
   Display the version number
 
