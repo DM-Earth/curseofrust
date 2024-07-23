@@ -7,7 +7,7 @@ use crossterm::{
     style::{self, Attribute, Color, ContentStyle, StyledContent},
     terminal::{self, ClearType},
 };
-use curseofrust::{state::UI, Player, Pos};
+use curseofrust::{state::UI, Grid, Player, Pos};
 
 use crate::State;
 
@@ -66,12 +66,13 @@ pub(crate) fn draw_all_grid<W: Write>(st: &mut State<W>) -> Result<(), std::io::
     draw_grid::<W, [_; 0]>(st, None)
 }
 
-pub(crate) fn rev_pos(x: u16, y: u16, ui: &UI) -> Option<Pos> {
+pub(crate) fn rev_pos(x: u16, y: u16, ui: &UI, grid: &Grid) -> Option<Pos> {
     let x = x as i32;
     let y = y as i32 - 1;
     let xskip = ui.xskip as i32;
     let x1 = (x + 4 * xskip - 2 * y - 1) / 4;
-    if x1 >= 0 {
+
+    if x1 >= 0 && grid.height() as i32 > y && grid.width() as i32 > x1 {
         Some(Pos(x1, y))
     } else {
         None

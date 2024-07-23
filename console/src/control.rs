@@ -1,7 +1,9 @@
 use std::ops::{ControlFlow, DerefMut};
 
 use crossterm::{
-    event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind},
+    event::{
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    },
     queue, terminal,
 };
 use curseofrust::{grid::Tile, Pos};
@@ -61,59 +63,57 @@ where
                 $e.map_err(DirectBoxedError::from)
             };
         }
-        match event {
-            crossterm::event::Event::Key(KeyEvent {
-                code,
-                modifiers: _,
-                kind,
-                state: _,
-            }) => {
-                if !matches!(st.control, ControlMode::Keyboard | ControlMode::Hybrid) {
-                    return Ok(ControlFlow::Continue(()));
-                }
+        match (event, st.control) {
+            (
+                crossterm::event::Event::Key(KeyEvent {
+                    code,
+                    modifiers: _,
+                    kind: KeyEventKind::Press | KeyEventKind::Repeat,
+                    state: _,
+                }),
+                ControlMode::Keyboard | ControlMode::Hybrid,
+            ) => {
                 let cursor = st.ui.cursor;
-                if !matches!(kind, crossterm::event::KeyEventKind::Release) {
-                    let cursor_x_shift = if st.ui.cursor.1 % 2 == 0 { 0 } else { 1 };
-                    match code {
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            st.ui.cursor.1 -= 1;
-                            st.ui.cursor.0 += cursor_x_shift;
-                        }
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            st.ui.cursor.1 += 1;
-                            st.ui.cursor.0 += cursor_x_shift - 1;
-                        }
-                        KeyCode::Left | KeyCode::Char('h') => {
-                            st.ui.cursor.0 -= 1;
-                        }
-                        KeyCode::Right | KeyCode::Char('l') => {
-                            st.ui.cursor.0 += 1;
-                        }
-
-                        KeyCode::Char('q') => {
-                            pc!(client.quit(st))?;
-                            return Ok(ControlFlow::Break(()));
-                        }
-
-                        KeyCode::Char(' ') => pc!(client.toggle_flag(st, cursor))?,
-                        KeyCode::Char('x') => {
-                            pc!(client.rm_all_flag(st))?;
-                            output::draw_all_grid(st)?;
-                        }
-                        KeyCode::Char('c') => {
-                            pc!(client.rm_half_flag(st))?;
-                            output::draw_all_grid(st)?;
-                        }
-                        KeyCode::Char('r') | KeyCode::Char('v') => {
-                            pc!(client.build(st, cursor))?;
-                        }
-
-                        KeyCode::Char('f') => pc!(client.faster(st))?,
-                        KeyCode::Char('s') => pc!(client.slower(st))?,
-                        KeyCode::Char('p') => pc!(client.toggle_pause(st))?,
-
-                        _ => {}
+                let cursor_x_shift = if st.ui.cursor.1 % 2 == 0 { 0 } else { 1 };
+                match code {
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        st.ui.cursor.1 -= 1;
+                        st.ui.cursor.0 += cursor_x_shift;
                     }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        st.ui.cursor.1 += 1;
+                        st.ui.cursor.0 += cursor_x_shift - 1;
+                    }
+                    KeyCode::Left | KeyCode::Char('h') => {
+                        st.ui.cursor.0 -= 1;
+                    }
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        st.ui.cursor.0 += 1;
+                    }
+
+                    KeyCode::Char('q') => {
+                        pc!(client.quit(st))?;
+                        return Ok(ControlFlow::Break(()));
+                    }
+
+                    KeyCode::Char(' ') => pc!(client.toggle_flag(st, cursor))?,
+                    KeyCode::Char('x') => {
+                        pc!(client.rm_all_flag(st))?;
+                        output::draw_all_grid(st)?;
+                    }
+                    KeyCode::Char('c') => {
+                        pc!(client.rm_half_flag(st))?;
+                        output::draw_all_grid(st)?;
+                    }
+                    KeyCode::Char('r') | KeyCode::Char('v') => {
+                        pc!(client.build(st, cursor))?;
+                    }
+
+                    KeyCode::Char('f') => pc!(client.faster(st))?,
+                    KeyCode::Char('s') => pc!(client.slower(st))?,
+                    KeyCode::Char('p') => pc!(client.toggle_pause(st))?,
+
+                    _ => {}
                 }
                 if !st.s.grid.tile(st.ui.cursor).is_some_and(Tile::is_visible) {
                     st.ui.cursor = cursor;
@@ -121,29 +121,54 @@ where
 
                 cupd!()
             }
-            crossterm::event::Event::Mouse(MouseEvent {
-                kind,
-                column,
-                row,
-                modifiers: _,
-            }) => {
-                if !matches!(st.control, ControlMode::Termux | ControlMode::Hybrid) {
-                    return Ok(ControlFlow::Continue(()));
+            (
+                crossterm::event::Event::Key(KeyEvent {
+                    code,
+                    modifiers,
+                    kind: KeyEventKind::Press | KeyEventKind::Repeat,
+                    state: _,
+                }),
+                ControlMode::Termux,
+            ) => match (code, modifiers) {
+                (KeyCode::Esc, _) => {
+                    pc!(client.quit(st))?;
+                    return Ok(ControlFlow::Break(()));
                 }
-                let pos = output::rev_pos(column, row, &st.ui);
-                match (kind, pos) {
-                    (MouseEventKind::Down(MouseButton::Left), Some(pos)) => {
+
+                (KeyCode::PageUp, _) => pc!(client.faster(st))?,
+                (KeyCode::PageDown, _) => pc!(client.slower(st))?,
+                (KeyCode::End, _) => pc!(client.toggle_pause(st))?,
+
+                (KeyCode::Home | KeyCode::Up, _) => pc!(client.build(st, cursor))?,
+
+                (KeyCode::Down, KeyModifiers::NONE) => pc!(client.rm_all_flag(st))?,
+                (KeyCode::Down, KeyModifiers::ALT) => pc!(client.rm_half_flag(st))?,
+
+                _ => {}
+            },
+            (
+                crossterm::event::Event::Mouse(MouseEvent {
+                    kind,
+                    column,
+                    row,
+                    modifiers,
+                }),
+                ControlMode::Termux | ControlMode::Hybrid,
+            ) => {
+                let pos = output::rev_pos(column, row, &st.ui, &st.s.grid);
+                match (kind, pos, st.control, modifiers) {
+                    (MouseEventKind::Down(MouseButton::Left), Some(pos), _, _) => {
                         if pos == cursor {
                             pc!(client.toggle_flag(st, cursor))?;
                         } else {
                             st.ui.adjust_cursor(&st.s, pos);
                         }
-                        cupd!()
                     }
                     _ => {}
                 }
+                cupd!()
             }
-            crossterm::event::Event::Resize(_, _) => {
+            (crossterm::event::Event::Resize(_, _), _) => {
                 queue!(st.out, terminal::Clear(terminal::ClearType::All))?;
                 output::draw_all_grid(st)?;
             }
