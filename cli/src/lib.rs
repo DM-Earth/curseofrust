@@ -31,6 +31,19 @@ pub enum Protocol {
     WebSocket,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum ControlMode {
+    /// Control mode designed for termux.
+    Termux,
+    /// Pure-keyboard controlling. Same as curseofwar.
+    #[default]
+    Keyboard,
+    /// Basic cursor controlling and full-featured
+    /// keyboard control.
+    Hybrid,
+}
+
 #[cfg(feature = "net-proto")]
 impl std::str::FromStr for Protocol {
     type Err = Error;
@@ -51,6 +64,25 @@ impl std::str::FromStr for Protocol {
     }
 }
 
+impl std::str::FromStr for ControlMode {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "termux" => Self::Termux,
+            "keyboard" => Self::Keyboard,
+            "hybrid" => Self::Hybrid,
+            _ => {
+                return Err(Error::UnknownVariant {
+                    ty: "control_mode",
+                    variants: &["termux", "keyboard", "hybrid"],
+                    value: s.to_owned(),
+                })
+            }
+        })
+    }
+}
+
 pub fn parse_to_options<I, S>(args: I) -> Result<Options, Error>
 where
     I: IntoIterator<Item = S>,
@@ -59,6 +91,7 @@ where
     let mut basic_opts = BasicOpts::default();
     let mut multiplayer_opts = MultiplayerOpts::default();
     let mut exit = false;
+    let mut cm = ControlMode::default();
 
     #[cfg(feature = "net-proto")]
     let mut protocol = Protocol::default();
@@ -149,6 +182,8 @@ where
                     #[cfg(feature = "net-proto")]
                     'p' => protocol = parse!("-p", "protocol", Protocol)?,
 
+                    'm' => cm = parse!("-m", "control mode", ControlMode)?,
+
                     f => return Err(Error::UnknownFlag { flag: f }),
                 }
             }
@@ -167,6 +202,7 @@ where
 
         #[cfg(feature = "net-proto")]
         protocol,
+        control_mode: cm,
     })
 }
 
@@ -177,6 +213,7 @@ pub struct Options {
     pub basic: BasicOpts,
     pub multiplayer: MultiplayerOpts,
     pub exit: bool,
+    pub control_mode: ControlMode,
 
     #[cfg(feature = "net-proto")]
     pub protocol: Protocol,
@@ -312,6 +349,9 @@ _/ /  \/ | |X _/ __/ __\  /   \   /  | |___| | | |  / __/_  __/
 
 -c port
   Clients's port (19150 is default).
+
+-m [keyboard|termux|hybrid]
+  Control method.
 
 -v
   Display the version number

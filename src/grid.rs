@@ -349,7 +349,7 @@ impl Grid {
 }
 
 /// A location.
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Default)]
 pub struct Pos(
     /// Horizontal axis.
     pub i32,
