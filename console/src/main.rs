@@ -53,6 +53,9 @@ fn main() -> Result<(), DirectBoxedError> {
         curseofrust::state::MultiplayerOpts::Client { server, port } => {
             let res = client::run(&mut st, server, port, protocol);
             execute!(st.out, terminal::Clear(terminal::ClearType::All))?;
+            if matches!(st.control, ControlMode::Termux | ControlMode::Hybrid) {
+                execute!(st.out, crossterm::event::DisableMouseCapture)?;
+            }
             terminal::disable_raw_mode()?;
             execute!(st.out, terminal::LeaveAlternateScreen, cursor::Show)?;
             res
@@ -212,6 +215,9 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
         }
     }
 
+    if matches!(st.control, ControlMode::Termux | ControlMode::Hybrid) {
+        execute!(st.out, crossterm::event::DisableMouseCapture)?;
+    }
     terminal::disable_raw_mode()?;
     execute!(st.out, terminal::LeaveAlternateScreen, cursor::Show)?;
 

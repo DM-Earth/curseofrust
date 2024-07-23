@@ -11,6 +11,7 @@ use std::{
 use async_executor::LocalExecutor;
 use crossterm::{cursor, execute, terminal};
 use curseofrust::Pos;
+use curseofrust_cli_parser::ControlMode;
 use curseofrust_msg::{bytemuck, client_msg::*, C2SData, S2CData, C2S_SIZE, S2C_SIZE};
 use curseofrust_net_foundation::{Connection, Handle, Protocol};
 use local_ip_address::{local_ip, local_ipv6};
@@ -247,8 +248,11 @@ pub(crate) fn run<W: Write>(
                         Ok(true) => {
                             let mut st = st.borrow_mut();
                             init = true;
-                            execute!(st.out, terminal::EnterAlternateScreen)?;
                             crossterm::terminal::enable_raw_mode()?;
+                            execute!(st.out, terminal::EnterAlternateScreen)?;
+                            if matches!(st.control, ControlMode::Termux | ControlMode::Hybrid) {
+                                execute!(st.out, crossterm::event::EnableMouseCapture)?;
+                            }
                             execute!(
                                 st.out,
                                 terminal::Clear(terminal::ClearType::All),

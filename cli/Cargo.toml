@@ -11,3 +11,7 @@ clap_lex = "0.7.1"
 
 [features]
 net-proto = []
+
+[[bin]]
+name = "curseofrust"
+path = "src/main.rs"
