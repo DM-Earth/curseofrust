@@ -1,0 +1,12 @@
+[package]
+name = "curseofrust-ffi"
+version = "0.1.0"
+edition = "2021"
+authors = ["C191239 <zhushunzhong2025@i.pkuschool.edu.cn>"]
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+curseofrust = { path = ".." }
+cli-parser = { path = "../cli", package = "curseofrust-cli-parser" }

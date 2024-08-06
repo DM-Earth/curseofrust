@@ -371,6 +371,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "curseofrust-ffi"
+version = "0.1.0"
+dependencies = [
+ "curseofrust",
+ "curseofrust-cli-parser",
+]
+
+[[package]]
 name = "curseofrust-gui-cocoa"
 version = "0.1.0"
 dependencies = [
