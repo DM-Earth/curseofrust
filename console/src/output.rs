@@ -226,15 +226,14 @@ where
     )?;
 
     if let Some(tile) = st.s.grid.tile(st.ui.cursor) {
-        for (p, pop) in tile
-            .units()
+        for (p, pop) in tile.units()[1..]
             .iter()
             .copied()
-            .zip(&st.s.countries)
+            .zip(st.s.countries.iter().skip(1))
             .filter_map(|(pop, country)| (country.gold > 0).then_some(pop))
             .enumerate()
         {
-            let player = Player(p as u32);
+            let player = Player((p + 1) as u32);
             queue!(
                 st.out,
                 style::Print("  "),
