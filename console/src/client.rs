@@ -156,14 +156,14 @@ pub(crate) fn run<W: Write>(
 
             #[inline(always)]
             fn deref(&self) -> &Self::Target {
-                &**self.0
+                &self.0
             }
         }
 
         impl<'a, T> DerefMut for WrappingCell<'a, &'a mut T> {
             #[inline(always)]
             fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut **self.0
+                &mut self.0
             }
         }
 

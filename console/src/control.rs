@@ -156,15 +156,14 @@ where
                 ControlMode::Termux | ControlMode::Hybrid,
             ) => {
                 let pos = output::rev_pos(column, row, &st.ui, &st.s.grid);
-                match (kind, pos, st.control, modifiers) {
-                    (MouseEventKind::Down(MouseButton::Left), Some(pos), _, _) => {
-                        if pos == cursor {
-                            pc!(client.toggle_flag(st, cursor))?;
-                        } else {
-                            st.ui.adjust_cursor(&st.s, pos);
-                        }
+                if let (MouseEventKind::Down(MouseButton::Left), Some(pos), _, _) =
+                    (kind, pos, st.control, modifiers)
+                {
+                    if pos == cursor {
+                        pc!(client.toggle_flag(st, cursor))?;
+                    } else {
+                        st.ui.adjust_cursor(&st.s, pos);
                     }
-                    _ => {}
                 }
                 cupd!()
             }

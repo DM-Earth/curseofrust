@@ -86,8 +86,6 @@ pub(crate) fn draw_grid<W: Write, I>(
 where
     I: IntoIterator<Item = Pos>,
 {
-    let iter: &mut dyn Iterator<Item = Pos>;
-
     let h = st.s.grid.height();
     let w = st.s.grid.width();
     let mut tiles = tiles.map(|poss| {
@@ -95,7 +93,7 @@ where
             .filter(|&Pos(x, y)| x < w as i32 && y < h as i32)
     });
     let mut tiles_all = (0..h).flat_map(|y| (0..w).map(move |x| Pos(x as i32, y as i32)));
-    iter = if let Some(ref mut it) = tiles {
+    let iter: &mut dyn Iterator<Item = Pos> = if let Some(ref mut it) = tiles {
         it
     } else {
         &mut tiles_all
@@ -109,7 +107,7 @@ where
                 y as u16 + 1
             )
         )?;
-        let pos = Pos(x as i32, y as i32);
+        let pos = Pos(x, y);
         let Some(tile) = st.s.grid.tile(pos) else {
             break;
         };
@@ -228,11 +226,19 @@ where
     )?;
 
     if let Some(tile) = st.s.grid.tile(st.ui.cursor) {
-        for (p, pop) in tile.units().iter().enumerate() {
+        for (p, pop) in tile
+            .units()
+            .iter()
+            .copied()
+            .zip(&st.s.countries)
+            .filter_map(|(pop, country)| (country.gold > 0).then_some(pop))
+            .enumerate()
+        {
+            let player = Player(p as u32);
             queue!(
                 st.out,
                 style::Print("  "),
-                style::PrintStyledContent(StyledContent::new(player_style(Player(p as u32)), *pop))
+                style::PrintStyledContent(StyledContent::new(player_style(player), pop))
             )?;
         }
     }
