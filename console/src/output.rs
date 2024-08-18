@@ -226,18 +226,17 @@ where
     )?;
 
     if let Some(tile) = st.s.grid.tile(st.ui.cursor) {
-        for (p, pop) in tile.units()[1..]
+        for (pop, coun) in tile
+            .units()
             .iter()
             .copied()
-            .zip(st.s.countries.iter().skip(1))
-            .filter_map(|(pop, country)| (country.gold > 0).then_some(pop))
-            .enumerate()
+            .zip(&st.s.countries)
+            .filter(|(pop, _)| *pop > 0)
         {
-            let player = Player((p + 1) as u32);
             queue!(
                 st.out,
                 style::Print("  "),
-                style::PrintStyledContent(StyledContent::new(player_style(player), pop))
+                style::PrintStyledContent(StyledContent::new(player_style(coun.player), pop))
             )?;
         }
     }
