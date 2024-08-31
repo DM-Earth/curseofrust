@@ -30,7 +30,7 @@ pub fn apply_s2c_msg(state: &mut State, data: S2CData) -> curseofrust::Result<()
                 .get(x)
                 .and_then(|a| a.get(y))
                 .copied()
-                .and_then(|a| TileClass::try_from(a).ok())
+                .map(TileClass::from)
             else {
                 // This make sure that the (x, y) indexes are valid for the data message.
                 continue;

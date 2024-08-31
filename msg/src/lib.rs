@@ -76,6 +76,8 @@ pub enum TileClass {
     Town = 5,
     #[doc(alias = "Castle")]
     Fortress = 6,
+    #[doc(hidden)]
+    Other = u8::MAX,
 }
 
 impl From<&Tile> for TileClass {
@@ -90,17 +92,17 @@ impl From<&Tile> for TileClass {
                 HabitLand::Town => TileClass::Town,
                 HabitLand::Village => TileClass::Village,
                 HabitLand::Grassland => TileClass::Grassland,
+                _ => TileClass::Other,
             },
+            _ => TileClass::Other,
         }
     }
 }
 
-impl TryFrom<u8> for TileClass {
-    type Error = ();
-
+impl From<u8> for TileClass {
     #[inline]
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Ok(match value {
+    fn from(value: u8) -> Self {
+        match value {
             0 => TileClass::Void,
             1 => TileClass::Mountain,
             2 => TileClass::Mine,
@@ -108,8 +110,8 @@ impl TryFrom<u8> for TileClass {
             4 => TileClass::Village,
             5 => TileClass::Town,
             6 => TileClass::Fortress,
-            _ => return Err(()),
-        })
+            _ => TileClass::Other,
+        }
     }
 }
 
@@ -133,6 +135,7 @@ impl From<TileClass> for Tile {
                     owner: Default::default(),
                 }
             }
+            TileClass::Other => Tile::Void,
         }
     }
 }

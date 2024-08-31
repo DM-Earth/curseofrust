@@ -18,6 +18,8 @@ const VILLAGE: &str = " n ";
 const TOWN: &str = "i=i";
 const FORTRESS: &str = "W#W";
 
+const UNKNOWN: &str = "???";
+
 fn player_style(player: Player) -> ContentStyle {
     ContentStyle {
         foreground_color: Some(player_color(player)),
@@ -179,12 +181,12 @@ where
             }
             curseofrust::grid::Tile::Habitable { land, units, owner } => {
                 cursor!();
-
                 let symbol = match land {
                     curseofrust::grid::HabitLand::Grassland => pop_to_symbol(units.iter().sum()),
                     curseofrust::grid::HabitLand::Village => VILLAGE,
                     curseofrust::grid::HabitLand::Town => TOWN,
                     curseofrust::grid::HabitLand::Fortress => FORTRESS,
+                    _ => UNKNOWN,
                 };
                 let style = player_style(*owner);
                 let l = if let Some(p) =
@@ -206,6 +208,10 @@ where
                 };
 
                 queue!(st.out, l, m, r)?;
+            }
+            _ => {
+                cursor!();
+                queue!(st.out, style::Print(UNKNOWN))?;
             }
         }
     }

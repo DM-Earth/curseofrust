@@ -700,7 +700,6 @@ impl CorApp {
                     continue;
                 }
                 match state.grid.tile(Pos(i as i32, j as i32)).unwrap() {
-                    Tile::Void => {}
                     Tile::Habitable { land, units, owner } => {
                         // Draw grass.
                         draw_tile(
@@ -719,7 +718,7 @@ impl CorApp {
                             HabitLand::Fortress => {
                                 draw_tile_2h(2, 7 + 3 * owner.0 as i16, pos_x(ui, i), pos_y(j))
                             }
-                            HabitLand::Grassland => {
+                            _ => {
                                 let pop = units[owner.0 as usize];
                                 if pop > 0 {
                                     draw_tile_noise(
@@ -758,7 +757,7 @@ impl CorApp {
                             pos_x(ui, i),
                             pos_y(j),
                         );
-                        // Draw mine/.
+                        // Draw mine.
                         if owner.is_neutral() {
                             draw_tile(5, 5, pos_x(ui, i), pos_y(j));
                         } else {
@@ -782,6 +781,7 @@ impl CorApp {
                             pos_y(j),
                         );
                     }
+                    _ => {}
                 }
                 // Draw flags.
                 for p in 0..MAX_PLAYERS as u32 {

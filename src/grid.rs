@@ -377,6 +377,7 @@ impl From<(u32, u32)> for Pos {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum Tile {
     /// Abyss.
     Void,
@@ -503,6 +504,7 @@ impl Default for Tile {
 /// Habitable tile variants.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum HabitLand {
     /// Habitable territory that does not have cities.
     #[default]
