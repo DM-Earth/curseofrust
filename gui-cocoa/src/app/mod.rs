@@ -8,7 +8,11 @@ use std::{array::from_fn, time::Duration};
 use crate::{
     app::{
         config::ACTIVATE,
-        output::{draw_str, draw_tile, TILE_HEIGHT, TYPE_HEIGHT, TYPE_WIDTH},
+        render::{
+            draw_int, draw_line, draw_str, draw_tile, draw_tile_2h, draw_tile_noise, is_cliff,
+            is_within_grid, pop_to_symbol, pos_x, pos_y, time_to_ymd, TILE_HEIGHT, TILE_WIDTH,
+            TYPE_HEIGHT, TYPE_WIDTH,
+        },
     },
     util::{app_from_objc, OnceAssign},
 };
@@ -45,13 +49,8 @@ use itoa::Buffer;
 use local_ip_address::{local_ip, local_ipv6};
 use msg::{bytemuck, server_msg, S2CData, C2S_SIZE, S2C_SIZE};
 
-use self::output::{
-    draw_int, draw_line, draw_tile_2h, draw_tile_noise, is_cliff, is_within_grid, pop_to_symbol,
-    pos_x, pos_y, time_to_ymd, TILE_WIDTH,
-};
-
 mod config;
-mod output;
+mod render;
 
 pub struct CorApp {
     // View-associated
