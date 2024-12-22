@@ -10,15 +10,13 @@ use crate::{
         config::ACTIVATE,
         render::{
             draw_int, draw_line, draw_str, draw_tile, draw_tile_2h, draw_tile_noise, is_cliff,
-            is_within_grid, pop_to_symbol, pos_x, pos_y, time_to_ymd, TILE_HEIGHT, TILE_WIDTH,
-            TYPE_HEIGHT, TYPE_WIDTH,
+            is_within_grid, pop_to_symbol, pos_x, pos_y, time_to_ymd, Renderer, TILE_HEIGHT,
+            TILE_WIDTH, TYPE_HEIGHT, TYPE_WIDTH,
         },
     },
     util::{app_from_objc, OnceAssign},
 };
 use build_time::build_time_local;
-use cacao::foundation::{AutoReleasePool, NSString};
-use cacao::objc::runtime::Bool;
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -31,19 +29,19 @@ use cacao::{
         geometry::{CGPoint, CGRect, CGSize},
     },
     events::EventModifierFlag,
-    foundation::{id, nil},
-    image::{Image, ImageView},
-    objc::{class, msg_send},
+    foundation::{id, nil, AutoReleasePool, NSString},
+    image::Image,
+    layout::Layout,
+    objc::{class, msg_send, runtime::Bool},
     pasteboard::Pasteboard,
     text::Label,
+    utils::sync_main_thread,
 };
-use cacao::{layout::Layout, utils::sync_main_thread};
-use curseofrust::grid::{HabitLand, Tile};
 use curseofrust::{
+    grid::{HabitLand, Tile},
     state::{MultiplayerOpts, State, UI},
-    Speed, FLAG_POWER,
+    Player, Pos, Speed, FLAG_POWER, MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH,
 };
-use curseofrust::{Player, Pos, MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH};
 use dispatch::{Queue, QueueAttribute};
 use itoa::Buffer;
 use local_ip_address::{local_ip, local_ipv6};
@@ -64,7 +62,6 @@ pub struct CorApp {
     tile_variant: Option<[[i16; MAX_HEIGHT as usize]; MAX_WIDTH as usize]>,
     pop_variant: Option<[[i16; MAX_HEIGHT as usize]; MAX_WIDTH as usize]>,
     ui: Option<UI>,
-    screen: Option<Image>,
     // Misc
     queue: Queue,
     _listener: EventMonitor,
@@ -115,7 +112,6 @@ impl CorApp {
             tile_variant: None,
             pop_variant: None,
             ui: None,
-            screen: None,
             queue: Queue::create(
                 "com.dm.earth.curseofrust.worker",
                 QueueAttribute::Concurrent,
@@ -364,10 +360,11 @@ impl CorApp {
             let this = app_from_objc::<Self>();
             this.game_window
                 .set_title(format!("Singleplayer - seed: {}", seed).as_str());
+            // Set content view
             this.game_window
-                .set_content_view(&this.game_window.delegate.as_ref().unwrap().game_view);
+                .set_content_view(this.game_window.delegate.as_ref().unwrap().renderer.view());
         });
-        let (screen_size, old_frame) = self.init_screen();
+        let old_frame = self.init_screen();
         let mut prev_time = Instant::now();
         let mut k: u16 = 0;
         let mut itoa_buf = Buffer::new();
@@ -386,7 +383,7 @@ impl CorApp {
                     state.simulate();
                 }
                 if k % 5 == 0 {
-                    self.render(screen_size, &mut itoa_buf);
+                    self.render(&mut itoa_buf);
                 }
             } else {
                 sleep(DELAY / 2);
@@ -399,6 +396,13 @@ impl CorApp {
             };
         });
         self.game_window.delegate.as_ref().unwrap().restore(false);
+        // Finalize game view
+        self.game_window
+            .delegate
+            .as_mut()
+            .unwrap()
+            .renderer
+            .finalize_renderer();
         self.terminate = false;
         self.run = false;
     }
@@ -429,7 +433,6 @@ impl CorApp {
             .map_err(|e| ("set_nonblocking error: ".to_owned() + &e.to_string(), None))?;
         self.socket = Some(socket);
         let mut s2c_buf = [0u8; S2C_SIZE];
-        let mut screen_size: CGSize = Default::default();
         let mut old_frame: CGRect = Default::default();
         let mut itoa_buf = Buffer::new();
         while !self.terminate {
@@ -464,14 +467,14 @@ impl CorApp {
                         .map_err(|e| ("apply_s2c_msg error: ".to_owned() + &e.to_string(), None))?;
                     if !self.run {
                         self.run = true;
-                        (screen_size, old_frame) = self.init_screen();
+                        old_frame = self.init_screen();
                         self.ui = Some(UI::new(self.state.as_ref().unwrap()));
                     }
                 }
                 // End fetch state
 
                 if self.run && k % 5 == 0 {
-                    self.render(screen_size, &mut itoa_buf);
+                    self.render(&mut itoa_buf);
                 }
             } else {
                 sleep(DELAY / 2);
@@ -671,15 +674,15 @@ impl CorApp {
     }
 
     /// Render the current [`State`].
-    fn render(&mut self, screen_size: CGSize, itoa_buf: &mut Buffer) {
+    fn render(&mut self, itoa_buf: &mut Buffer) {
         let pool = ManuallyDrop::new(AutoReleasePool::new());
         // Render start.
-        unsafe {
-            let background: id = msg_send![class!(NSColor), blackColor];
-            let _: () = msg_send![&self.screen.as_ref().unwrap().0, lockFocusFlipped:Bool::YES];
-            // Draw background
-            let _: () = msg_send![background, drawSwatchInRect:CGRect::new(&CGPoint::new(0., 0.), &screen_size)];
-        }
+        self.game_window
+            .delegate
+            .as_ref()
+            .unwrap()
+            .renderer
+            .init_frame();
         let state = self.state.as_ref().unwrap();
         let ui = self.ui.as_ref().unwrap();
         let tile_var = self.tile_variant.as_ref().unwrap();
@@ -960,9 +963,13 @@ impl CorApp {
         );
         // Draw line.
         draw_line(base_y);
-        unsafe {
-            let _: () = msg_send![&self.screen.as_ref().unwrap().0, unlockFocus];
-        }
+        // Finalize frame rendering
+        self.game_window
+            .delegate
+            .as_ref()
+            .unwrap()
+            .renderer
+            .finalize_frame();
 
         // Flush.
         sync_main_thread(|| {
@@ -971,15 +978,16 @@ impl CorApp {
                 .delegate
                 .as_ref()
                 .unwrap()
-                .game_view
+                .renderer
+                .view()
                 .set_needs_display(true);
         });
 
         pool.drain();
     }
 
-    /// Returns `(screen_size, old_frame)`.
-    fn init_screen(&mut self) -> (CGSize, CGRect) {
+    /// Returns `old_frame`.
+    fn init_screen(&mut self) -> CGRect {
         let screen_size = CGSize::new(
             i16::max(
                 (self.ui.as_ref().unwrap().xlen + 2) as i16 * TILE_WIDTH,
@@ -992,9 +1000,6 @@ impl CorApp {
         );
         let old_frame: CGRect;
         unsafe {
-            let alloc: id = msg_send![class!(NSImage), alloc];
-            let obj: id = msg_send![alloc, initWithSize:screen_size];
-            self.screen = Some(Image::with(obj));
             // Resize window to fit `screen`.
             old_frame = msg_send![&self.game_window.objc, frame];
             let old_content: CGRect =
@@ -1015,11 +1020,11 @@ impl CorApp {
         }
         self.game_window
             .delegate
-            .as_ref()
+            .as_mut()
             .unwrap()
-            .game_view
-            .set_image(self.screen.as_ref().unwrap());
-        (screen_size, old_frame)
+            .renderer
+            .init_renderer(screen_size);
+        old_frame
     }
 }
 
@@ -1116,7 +1121,7 @@ struct GameWindow {
     window: OnceAssign<Window>,
 
     err_msg: Label,
-    game_view: ImageView,
+    renderer: Renderer,
 }
 
 impl GameWindow {
@@ -1124,7 +1129,7 @@ impl GameWindow {
         Self {
             window: OnceAssign::new(),
             err_msg: Label::new(),
-            game_view: ImageView::new(),
+            renderer: Renderer::new(),
         }
     }
 

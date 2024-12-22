@@ -3,6 +3,8 @@ use curseofrust::{state, Grid, Player, Pos};
 use imp::draw_raw;
 use itoa::{Buffer, Integer};
 
+pub use imp::Renderer;
+
 #[cfg(not(feature = "metal"))]
 #[path = "sw.rs"]
 mod imp;
