@@ -1,9 +1,10 @@
-use std::mem::ManuallyDrop;
-use std::net::{SocketAddr, UdpSocket};
-use std::sync::Once;
-use std::thread::sleep;
-use std::time::{Instant, UNIX_EPOCH};
-use std::{array::from_fn, time::Duration};
+use std::{
+    array::from_fn,
+    mem::ManuallyDrop,
+    net::{SocketAddr, UdpSocket},
+    thread::sleep,
+    time::{Duration, Instant, UNIX_EPOCH},
+};
 
 use crate::{
     app::{
@@ -224,65 +225,67 @@ impl CorApp {
         vec![main_menu, file_menu, help_menu]
     }
 
-    /// Loses main menu's bold style.
-    fn _change_app_menu_name(name: &str) {
-        let pool = ManuallyDrop::new(AutoReleasePool::new());
-        let string = NSString::new(name);
-        unsafe {
-            let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
-            let main_menu: id = msg_send![shared_app, mainMenu];
-            let item_zero: id = msg_send![main_menu, itemAtIndex:0];
-            let app_menu: id = msg_send![item_zero, submenu];
-            let _: () = msg_send![app_menu, setTitle:string.objc.autorelease_return()];
-        }
-        pool.drain();
-    }
-
-    /// Very raw, very ugly.
-    fn _draw_and_set_app_menu_name(name: &str) {
-        let pool = ManuallyDrop::new(AutoReleasePool::new());
-        let string: NSString = NSString::new(name);
-        unsafe {
-            use cacao::foundation::NSMutableDictionary;
-            let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
-            let main_menu: id = msg_send![shared_app, mainMenu];
-            let item_zero: id = msg_send![main_menu, itemAtIndex:0];
-            let app_menu: id = msg_send![item_zero, submenu];
-
-            let font: id = msg_send![class!(NSFont), boldSystemFontOfSize:13];
-            let mut dict: NSMutableDictionary = NSMutableDictionary::new();
-            // This dictionary key name needs to be corrected.
-            dict.insert(NSString::new("NSFontAttributeName"), font);
-            let dict_objc = dict.0.autorelease_return();
-            let size: CGSize = msg_send![&string.objc, sizeWithAttributes:dict_objc];
-            let alloc: id = msg_send![class!(NSImage), alloc];
-            let image: id = msg_send![alloc, initWithSize:size];
-            let _: () = msg_send![image, lockFocus];
-            let rect: CGRect = CGRect::new(&CGPoint::new(0.0, 0.5), &size);
-            let _: () = msg_send![&string.objc, drawWithRect:rect options:1<<0 attributes:dict_objc context:nil];
-            let _: () = msg_send![image, unlockFocus];
-
-            let _: () = msg_send![app_menu, setTitle:NSString::new("").objc.autorelease_return()];
-            let _: () = msg_send![item_zero, setImage:image];
-        }
-        pool.drain();
-    }
-
-    /// Icon is hard-coded, so call this only once.\
-    /// Just modify this fn if you want to change icon.
-    fn _set_app_icon() {
-        static ONCE: Once = Once::new();
-        ONCE.call_once(|| {
+    /*
+        /// Loses main menu's bold style.
+        fn _change_app_menu_name(name: &str) {
             let pool = ManuallyDrop::new(AutoReleasePool::new());
-            let image: Image = Image::with_data(include_bytes!("../../images/icon.gif"));
+            let string = NSString::new(name);
             unsafe {
                 let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
-                let _: () =
-                    msg_send![shared_app, setApplicationIconImage:image.0.autorelease_return()];
+                let main_menu: id = msg_send![shared_app, mainMenu];
+                let item_zero: id = msg_send![main_menu, itemAtIndex:0];
+                let app_menu: id = msg_send![item_zero, submenu];
+                let _: () = msg_send![app_menu, setTitle:string.objc.autorelease_return()];
             }
             pool.drain();
-        })
-    }
+        }
+
+        /// Very raw, very ugly.
+        fn _draw_and_set_app_menu_name(name: &str) {
+            let pool = ManuallyDrop::new(AutoReleasePool::new());
+            let string: NSString = NSString::new(name);
+            unsafe {
+                use cacao::foundation::NSMutableDictionary;
+                let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
+                let main_menu: id = msg_send![shared_app, mainMenu];
+                let item_zero: id = msg_send![main_menu, itemAtIndex:0];
+                let app_menu: id = msg_send![item_zero, submenu];
+
+                let font: id = msg_send![class!(NSFont), boldSystemFontOfSize:13];
+                let mut dict: NSMutableDictionary = NSMutableDictionary::new();
+                // This dictionary key name needs to be corrected.
+                dict.insert(NSString::new("NSFontAttributeName"), font);
+                let dict_objc = dict.0.autorelease_return();
+                let size: CGSize = msg_send![&string.objc, sizeWithAttributes:dict_objc];
+                let alloc: id = msg_send![class!(NSImage), alloc];
+                let image: id = msg_send![alloc, initWithSize:size];
+                let _: () = msg_send![image, lockFocus];
+                let rect: CGRect = CGRect::new(&CGPoint::new(0.0, 0.5), &size);
+                let _: () = msg_send![&string.objc, drawWithRect:rect options:1<<0 attributes:dict_objc context:nil];
+                let _: () = msg_send![image, unlockFocus];
+
+                let _: () = msg_send![app_menu, setTitle:NSString::new("").objc.autorelease_return()];
+                let _: () = msg_send![item_zero, setImage:image];
+            }
+            pool.drain();
+        }
+
+        /// Icon is hard-coded, so call this only once.\
+        /// Just modify this fn if you want to change icon.
+        fn _set_app_icon() {
+            static ONCE: Once = Once::new();
+            ONCE.call_once(|| {
+                let pool = ManuallyDrop::new(AutoReleasePool::new());
+                let image: Image = Image::with_data(include_bytes!("../../images/icon.gif"));
+                unsafe {
+                    let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
+                    let _: () =
+                        msg_send![shared_app, setApplicationIconImage:image.0.autorelease_return()];
+                }
+                pool.drain();
+            })
+        }
+    */
 
     /// Starts the game.
     fn pre_run(&mut self) {
