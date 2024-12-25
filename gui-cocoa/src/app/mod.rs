@@ -30,9 +30,7 @@ use cacao::{
         geometry::{CGPoint, CGRect, CGSize},
     },
     events::EventModifierFlag,
-    foundation::{id, nil, AutoReleasePool, NSString},
-    image::Image,
-    layout::Layout,
+    foundation::{id, AutoReleasePool, NSString},
     objc::{class, msg_send, runtime::Bool},
     pasteboard::Pasteboard,
     text::Label,
@@ -365,7 +363,11 @@ impl CorApp {
                 .set_title(format!("Singleplayer - seed: {}", seed).as_str());
             // Set content view
             this.game_window
-                .set_content_view(this.game_window.delegate.as_ref().unwrap().renderer.view());
+                .delegate
+                .as_ref()
+                .unwrap()
+                .renderer
+                .set_content_window(&this.game_window);
         });
         let old_frame = self.init_screen();
         let mut prev_time = Instant::now();
@@ -982,8 +984,7 @@ impl CorApp {
                 .as_ref()
                 .unwrap()
                 .renderer
-                .view()
-                .set_needs_display(true);
+                .set_view_needs_display(true);
         });
 
         pool.drain();

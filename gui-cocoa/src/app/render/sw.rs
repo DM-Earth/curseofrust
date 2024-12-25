@@ -1,4 +1,5 @@
 use cacao::{
+    appkit::window::Window,
     core_graphics::{
         base::CGFloat,
         display::{CGPoint, CGRect, CGSize},
@@ -7,6 +8,7 @@ use cacao::{
     image::{Image, ImageView},
     layout::Layout,
     objc::{class, msg_send, runtime::Bool},
+    objc_access::ObjcAccess,
 };
 
 use super::Texture;
@@ -51,8 +53,14 @@ impl Renderer {
     }
 
     #[inline]
-    pub fn view(&self) -> &(impl Layout + 'static) {
-        &self.view
+    pub fn set_view_needs_display(&self, needs_display: bool) {
+        self.view.set_needs_display(needs_display)
+    }
+
+    #[inline]
+    pub fn set_content_window<T>(&self, window: &Window<T>) {
+        self.view
+            .get_from_backing_obj(|view| unsafe { msg_send![&window.objc, setContentView:view] })
     }
 
     pub fn init_renderer(&mut self, screen_size: CGSize) {
