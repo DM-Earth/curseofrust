@@ -684,7 +684,7 @@ impl CorApp {
         // Render start.
         self.game_window
             .delegate
-            .as_ref()
+            .as_mut()
             .unwrap()
             .renderer
             .init_frame();
@@ -971,7 +971,7 @@ impl CorApp {
         // Finalize frame rendering
         self.game_window
             .delegate
-            .as_ref()
+            .as_mut()
             .unwrap()
             .renderer
             .finalize_frame();

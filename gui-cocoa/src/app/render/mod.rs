@@ -9,6 +9,10 @@ pub use imp::Renderer;
 #[path = "sw.rs"]
 mod imp;
 
+#[cfg(feature = "metal")]
+#[path = "metal.rs"]
+mod imp;
+
 pub const TILE_WIDTH: i16 = 32;
 pub const TILE_HEIGHT: i16 = 16;
 pub const TYPE_WIDTH: i16 = 9;
