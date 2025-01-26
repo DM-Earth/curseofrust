@@ -54,6 +54,9 @@ metal = [
     "objc2-metal/MTLCommandEncoder",
     "objc2-metal/MTLCommandQueue",
     "objc2-metal/MTLDrawable",
+    "objc2-metal/MTLResource",
+    "objc2-metal/MTLTexture",
+    "objc2-metal/MTLTypes",
     "objc2-quartz-core/CAMetalLayer",
     "objc2-quartz-core/objc2-metal",
 ]

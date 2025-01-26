@@ -1,10 +1,12 @@
 //! Metal renderer implementation.
 
+use std::mem;
+
 use objc2::{rc::Retained, runtime::ProtocolObject, ClassType};
 use objc2_foundation::{CGRect, CGSize, MainThreadMarker, NSUInteger};
 use objc2_metal::{
     MTLBlitCommandEncoder, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue,
-    MTLCreateSystemDefaultDevice, MTLDevice, MTLDrawable, MTLTexture,
+    MTLCreateSystemDefaultDevice, MTLDevice, MTLDrawable, MTLOrigin, MTLSize, MTLTexture,
 };
 use objc2_metal_kit::{MTKTextureLoader, MTKView};
 use objc2_quartz_core::CAMetalDrawable;
@@ -72,7 +74,29 @@ pub fn draw_raw(
     dest: cacao::core_graphics::display::CGPoint,
     rect: cacao::core_graphics::display::CGRect,
 ) {
-    todo!()
+    TEXTURE.with(|collection|{
+        let renderer = &app_from_objc::<CorApp>()
+            .game_window
+            .delegate
+            .as_ref()
+            .unwrap()
+            .renderer;
+        unsafe {
+            renderer.command_encoder.as_ref().unwrap().copyFromTexture_sourceSlice_sourceLevel_sourceOrigin_sourceSize_toTexture_destinationSlice_destinationLevel_destinationOrigin(match texture {
+                    Texture::Tile => &collection.tile,
+                    Texture::Type => &collection.typ,
+                    Texture::Ui => &collection.ui,
+                },
+                SLICE,
+                MIPMAP_LEVEL,
+                MTLOrigin { x: rect.origin.x as _, y: rect.origin.y as _, z: 0 },
+                MTLSize { width: rect.size.width as _, height: rect.size.height as _, depth: 1 },
+                &renderer.current_drawable.as_ref().unwrap().texture(), SLICE,
+                MIPMAP_LEVEL,
+                MTLOrigin { x: dest.x as _, y: dest.y as _, z: 0 },
+            )
+        };
+    })
 }
 
 pub struct Renderer {
@@ -123,18 +147,11 @@ impl Renderer {
 
     #[inline]
     pub fn set_content_window<T>(&self, window: &cacao::appkit::window::Window<T>) {
-        /// Type system stretch.
-        #[repr(transparent)]
-        struct Encodable<T>(pub T);
-        unsafe impl cacao::objc::RefEncode for Encodable<*mut MTKView> {
-            const ENCODING_REF: cacao::objc::Encoding = cacao::objc::Encoding::Object;
-        }
-
-        let ptr = Encodable(Retained::<MTKView>::into_raw(self.view.retain()));
+        use cacao::objc::{msg_send, runtime::Object};
         unsafe {
-            let _: () = cacao::objc::msg_send![&window.objc, setContentView:&ptr];
-            let _obj = Retained::<MTKView>::from_raw(ptr.0)
-                .expect("Metal Renderer::set_content_window() failure");
+            let ptr =
+                mem::transmute::<_, *mut Object>(Retained::autorelease_return(self.view.retain()));
+            let _: () = msg_send![&window.objc, setContentView:ptr];
         }
     }
 
