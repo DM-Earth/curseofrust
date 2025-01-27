@@ -35,8 +35,13 @@ category = "public.app-category.strategy-games"
 icon = ["./images/icon.gif"]
 
 [features]
-default = ["high-sierra", "metal"]
+default = ["high-sierra"]
 high-sierra = []
+
+# This feature enables GPU rendering using Metal.
+# It's confirmed that this feature will bring instability to your system.
+# YOU HAVE BEEN WARNED.
+# C191239 Jan. 27th, 25'
 metal = [
     "dep:objc2",
     "dep:objc2-foundation",
