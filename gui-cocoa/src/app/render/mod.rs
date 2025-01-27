@@ -1,23 +1,17 @@
-use cacao::{
-    core_graphics::{
-        base::CGFloat,
-        geometry::{CGPoint, CGRect, CGSize},
-    },
-    foundation::NSUInteger,
-    image::Image,
-    objc::msg_send,
-};
+use cacao::core_graphics::geometry::{CGPoint, CGRect, CGSize};
 use curseofrust::{state, Grid, Player, Pos};
+use imp::draw_raw;
 use itoa::{Buffer, Integer};
 
-thread_local! {
-    /// Contains all possible characters of all colors.
-    static TYPE: Image = Image::with_data(include_bytes!("../../images/type.gif"));
-    /// The line between two text sections.
-    static UI: Image = Image::with_data(include_bytes!("../../images/ui.gif"));
-    /// Main game resources.
-    static TILE: Image = Image::with_data(include_bytes!("../../images/tileset.gif"));
-}
+pub use imp::Renderer;
+
+#[cfg(not(feature = "metal"))]
+#[path = "sw.rs"]
+mod imp;
+
+#[cfg(feature = "metal")]
+#[path = "metal.rs"]
+mod imp;
 
 pub const TILE_WIDTH: i16 = 32;
 pub const TILE_HEIGHT: i16 = 16;
@@ -28,10 +22,11 @@ const TYPE_FIRST: u8 = 33;
 const LINE_LENGTH: i16 = 32;
 const COLOR_OFFSET: i16 = 3;
 
-/// Copied from `icrate`.\
-/// 2024-07-01 update: `icrate` is dead.
-#[allow(non_upper_case_globals)]
-const NSCompositingOperationSourceOver: NSUInteger = 2;
+enum Texture {
+    Type,
+    Ui,
+    Tile,
+}
 
 /// Magic, but it works fine.
 #[inline]
@@ -42,14 +37,6 @@ pub fn pos_x(ui: &state::UI, i: i16) -> i16 {
 #[inline]
 pub fn pos_y(j: i16) -> i16 {
     j + 1
-}
-
-macro_rules! draw_raw {
-    ($image:expr,$dest:ident,$from:ident) => {
-        unsafe{
-            let _: () = msg_send![$image, drawAtPoint:$dest fromRect:$from, operation:NSCompositingOperationSourceOver fraction:(1. as CGFloat)];
-        }
-    };
 }
 
 /// Draws string with specified color.\
@@ -72,7 +59,7 @@ pub fn draw_str(string: &str, color: Player, dest_x: i16, dest_y: i16) {
             &CGSize::new(TYPE_WIDTH as f64, TYPE_HEIGHT as f64),
         );
         let dest_point = CGPoint::new((dest_x + index as i16 * TYPE_WIDTH) as f64, dest_y as f64);
-        TYPE.with(|ty| draw_raw!(&ty.0, dest_point, type_rect));
+        draw_raw(Texture::Type, dest_point, type_rect);
     }
 }
 
@@ -86,7 +73,7 @@ pub fn draw_tile(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16) {
         (dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) as f64,
         (dest_j * TILE_HEIGHT) as f64,
     );
-    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
+    draw_raw(Texture::Tile, dest_point, tile_rect);
 }
 
 /// Draws double height tiles like working mine.
@@ -102,7 +89,7 @@ pub fn draw_tile_2h(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16) {
         (dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) as f64,
         ((dest_j - 1) * TILE_HEIGHT) as f64,
     );
-    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
+    draw_raw(Texture::Tile, dest_point, tile_rect);
 }
 
 /// Draws tiles with offset like population.
@@ -117,7 +104,7 @@ pub fn draw_tile_noise(src_i: i16, src_j: i16, dest_i: i16, dest_j: i16, var: i1
         ((dest_i * TILE_WIDTH + dest_j * TILE_WIDTH / 2) + rnd_x) as f64,
         ((dest_j * TILE_HEIGHT) + rnd_y) as f64,
     );
-    TILE.with(|tile| draw_raw!(&tile.0, dest_point, tile_rect));
+    draw_raw(Texture::Tile, dest_point, tile_rect);
 }
 
 /// Return value:
@@ -183,7 +170,7 @@ pub fn draw_line(base_y: i16) {
         TILE_WIDTH as f64 + 75. * TYPE_WIDTH as f64 / 2. - LINE_WIDTH / 2.,
         base_y as f64 + TYPE_HEIGHT as f64 * 5. / 2.,
     );
-    UI.with(|ui| draw_raw!(&ui.0, dest_point, ui_rect));
+    draw_raw(Texture::Ui, dest_point, ui_rect);
 }
 
 /// Draws int with specified color.\

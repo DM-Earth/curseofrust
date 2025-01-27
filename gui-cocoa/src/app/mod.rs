@@ -1,20 +1,23 @@
-use std::mem::ManuallyDrop;
-use std::net::{SocketAddr, UdpSocket};
-use std::sync::Once;
-use std::thread::sleep;
-use std::time::{Instant, UNIX_EPOCH};
-use std::{array::from_fn, time::Duration};
+use std::{
+    array::from_fn,
+    mem::ManuallyDrop,
+    net::{SocketAddr, UdpSocket},
+    thread::sleep,
+    time::{Duration, Instant, UNIX_EPOCH},
+};
 
 use crate::{
     app::{
         config::ACTIVATE,
-        output::{draw_str, draw_tile, TILE_HEIGHT, TYPE_HEIGHT, TYPE_WIDTH},
+        render::{
+            draw_int, draw_line, draw_str, draw_tile, draw_tile_2h, draw_tile_noise, is_cliff,
+            is_within_grid, pop_to_symbol, pos_x, pos_y, time_to_ymd, Renderer, TILE_HEIGHT,
+            TILE_WIDTH, TYPE_HEIGHT, TYPE_WIDTH,
+        },
     },
     util::{app_from_objc, OnceAssign},
 };
 use build_time::build_time_local;
-use cacao::foundation::{AutoReleasePool, NSString};
-use cacao::objc::runtime::Bool;
 use cacao::{
     appkit::{
         menu::{Menu, MenuItem},
@@ -27,31 +30,24 @@ use cacao::{
         geometry::{CGPoint, CGRect, CGSize},
     },
     events::EventModifierFlag,
-    foundation::{id, nil},
-    image::{Image, ImageView},
-    objc::{class, msg_send},
+    foundation::{id, AutoReleasePool, NSString},
+    objc::{class, msg_send, runtime::Bool},
     pasteboard::Pasteboard,
     text::Label,
+    utils::sync_main_thread,
 };
-use cacao::{layout::Layout, utils::sync_main_thread};
-use curseofrust::grid::{HabitLand, Tile};
 use curseofrust::{
+    grid::{HabitLand, Tile},
     state::{MultiplayerOpts, State, UI},
-    Speed, FLAG_POWER,
+    Player, Pos, Speed, FLAG_POWER, MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH,
 };
-use curseofrust::{Player, Pos, MAX_HEIGHT, MAX_PLAYERS, MAX_WIDTH};
 use dispatch::{Queue, QueueAttribute};
 use itoa::Buffer;
 use local_ip_address::{local_ip, local_ipv6};
 use msg::{bytemuck, server_msg, S2CData, C2S_SIZE, S2C_SIZE};
 
-use self::output::{
-    draw_int, draw_line, draw_tile_2h, draw_tile_noise, is_cliff, is_within_grid, pop_to_symbol,
-    pos_x, pos_y, time_to_ymd, TILE_WIDTH,
-};
-
 mod config;
-mod output;
+mod render;
 
 pub struct CorApp {
     // View-associated
@@ -65,7 +61,6 @@ pub struct CorApp {
     tile_variant: Option<[[i16; MAX_HEIGHT as usize]; MAX_WIDTH as usize]>,
     pop_variant: Option<[[i16; MAX_HEIGHT as usize]; MAX_WIDTH as usize]>,
     ui: Option<UI>,
-    screen: Option<Image>,
     // Misc
     queue: Queue,
     _listener: EventMonitor,
@@ -116,7 +111,6 @@ impl CorApp {
             tile_variant: None,
             pop_variant: None,
             ui: None,
-            screen: None,
             queue: Queue::create(
                 "com.dm.earth.curseofrust.worker",
                 QueueAttribute::Concurrent,
@@ -229,65 +223,67 @@ impl CorApp {
         vec![main_menu, file_menu, help_menu]
     }
 
-    /// Loses main menu's bold style.
-    fn _change_app_menu_name(name: &str) {
-        let pool = ManuallyDrop::new(AutoReleasePool::new());
-        let string = NSString::new(name);
-        unsafe {
-            let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
-            let main_menu: id = msg_send![shared_app, mainMenu];
-            let item_zero: id = msg_send![main_menu, itemAtIndex:0];
-            let app_menu: id = msg_send![item_zero, submenu];
-            let _: () = msg_send![app_menu, setTitle:string.objc.autorelease_return()];
-        }
-        pool.drain();
-    }
-
-    /// Very raw, very ugly.
-    fn _draw_and_set_app_menu_name(name: &str) {
-        let pool = ManuallyDrop::new(AutoReleasePool::new());
-        let string: NSString = NSString::new(name);
-        unsafe {
-            use cacao::foundation::NSMutableDictionary;
-            let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
-            let main_menu: id = msg_send![shared_app, mainMenu];
-            let item_zero: id = msg_send![main_menu, itemAtIndex:0];
-            let app_menu: id = msg_send![item_zero, submenu];
-
-            let font: id = msg_send![class!(NSFont), boldSystemFontOfSize:13];
-            let mut dict: NSMutableDictionary = NSMutableDictionary::new();
-            // This dictionary key name needs to be corrected.
-            dict.insert(NSString::new("NSFontAttributeName"), font);
-            let dict_objc = dict.0.autorelease_return();
-            let size: CGSize = msg_send![&string.objc, sizeWithAttributes:dict_objc];
-            let alloc: id = msg_send![class!(NSImage), alloc];
-            let image: id = msg_send![alloc, initWithSize:size];
-            let _: () = msg_send![image, lockFocus];
-            let rect: CGRect = CGRect::new(&CGPoint::new(0.0, 0.5), &size);
-            let _: () = msg_send![&string.objc, drawWithRect:rect options:1<<0 attributes:dict_objc context:nil];
-            let _: () = msg_send![image, unlockFocus];
-
-            let _: () = msg_send![app_menu, setTitle:NSString::new("").objc.autorelease_return()];
-            let _: () = msg_send![item_zero, setImage:image];
-        }
-        pool.drain();
-    }
-
-    /// Icon is hard-coded, so call this only once.\
-    /// Just modify this fn if you want to change icon.
-    fn _set_app_icon() {
-        static ONCE: Once = Once::new();
-        ONCE.call_once(|| {
+    /*
+        /// Loses main menu's bold style.
+        fn _change_app_menu_name(name: &str) {
             let pool = ManuallyDrop::new(AutoReleasePool::new());
-            let image: Image = Image::with_data(include_bytes!("../../images/icon.gif"));
+            let string = NSString::new(name);
             unsafe {
                 let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
-                let _: () =
-                    msg_send![shared_app, setApplicationIconImage:image.0.autorelease_return()];
+                let main_menu: id = msg_send![shared_app, mainMenu];
+                let item_zero: id = msg_send![main_menu, itemAtIndex:0];
+                let app_menu: id = msg_send![item_zero, submenu];
+                let _: () = msg_send![app_menu, setTitle:string.objc.autorelease_return()];
             }
             pool.drain();
-        })
-    }
+        }
+
+        /// Very raw, very ugly.
+        fn _draw_and_set_app_menu_name(name: &str) {
+            let pool = ManuallyDrop::new(AutoReleasePool::new());
+            let string: NSString = NSString::new(name);
+            unsafe {
+                use cacao::foundation::NSMutableDictionary;
+                let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
+                let main_menu: id = msg_send![shared_app, mainMenu];
+                let item_zero: id = msg_send![main_menu, itemAtIndex:0];
+                let app_menu: id = msg_send![item_zero, submenu];
+
+                let font: id = msg_send![class!(NSFont), boldSystemFontOfSize:13];
+                let mut dict: NSMutableDictionary = NSMutableDictionary::new();
+                // This dictionary key name needs to be corrected.
+                dict.insert(NSString::new("NSFontAttributeName"), font);
+                let dict_objc = dict.0.autorelease_return();
+                let size: CGSize = msg_send![&string.objc, sizeWithAttributes:dict_objc];
+                let alloc: id = msg_send![class!(NSImage), alloc];
+                let image: id = msg_send![alloc, initWithSize:size];
+                let _: () = msg_send![image, lockFocus];
+                let rect: CGRect = CGRect::new(&CGPoint::new(0.0, 0.5), &size);
+                let _: () = msg_send![&string.objc, drawWithRect:rect options:1<<0 attributes:dict_objc context:nil];
+                let _: () = msg_send![image, unlockFocus];
+
+                let _: () = msg_send![app_menu, setTitle:NSString::new("").objc.autorelease_return()];
+                let _: () = msg_send![item_zero, setImage:image];
+            }
+            pool.drain();
+        }
+
+        /// Icon is hard-coded, so call this only once.\
+        /// Just modify this fn if you want to change icon.
+        fn _set_app_icon() {
+            static ONCE: Once = Once::new();
+            ONCE.call_once(|| {
+                let pool = ManuallyDrop::new(AutoReleasePool::new());
+                let image: Image = Image::with_data(include_bytes!("../../images/icon.gif"));
+                unsafe {
+                    let shared_app: id = msg_send![class!(RSTApplication), sharedApplication];
+                    let _: () =
+                        msg_send![shared_app, setApplicationIconImage:image.0.autorelease_return()];
+                }
+                pool.drain();
+            })
+        }
+    */
 
     /// Starts the game.
     fn pre_run(&mut self) {
@@ -365,10 +361,15 @@ impl CorApp {
             let this = app_from_objc::<Self>();
             this.game_window
                 .set_title(format!("Singleplayer - seed: {}", seed).as_str());
+            // Set content view
             this.game_window
-                .set_content_view(&this.game_window.delegate.as_ref().unwrap().game_view);
+                .delegate
+                .as_ref()
+                .unwrap()
+                .renderer
+                .set_content_window(&this.game_window);
         });
-        let (screen_size, old_frame) = self.init_screen();
+        let old_frame = self.init_screen();
         let mut prev_time = Instant::now();
         let mut k: u16 = 0;
         let mut itoa_buf = Buffer::new();
@@ -387,7 +388,7 @@ impl CorApp {
                     state.simulate();
                 }
                 if k % 5 == 0 {
-                    self.render(screen_size, &mut itoa_buf);
+                    self.render(&mut itoa_buf);
                 }
             } else {
                 sleep(DELAY / 2);
@@ -400,6 +401,13 @@ impl CorApp {
             };
         });
         self.game_window.delegate.as_ref().unwrap().restore(false);
+        // Finalize game view
+        self.game_window
+            .delegate
+            .as_mut()
+            .unwrap()
+            .renderer
+            .finalize_renderer();
         self.terminate = false;
         self.run = false;
     }
@@ -430,7 +438,6 @@ impl CorApp {
             .map_err(|e| ("set_nonblocking error: ".to_owned() + &e.to_string(), None))?;
         self.socket = Some(socket);
         let mut s2c_buf = [0u8; S2C_SIZE];
-        let mut screen_size: CGSize = Default::default();
         let mut old_frame: CGRect = Default::default();
         let mut itoa_buf = Buffer::new();
         while !self.terminate {
@@ -465,14 +472,14 @@ impl CorApp {
                         .map_err(|e| ("apply_s2c_msg error: ".to_owned() + &e.to_string(), None))?;
                     if !self.run {
                         self.run = true;
-                        (screen_size, old_frame) = self.init_screen();
+                        old_frame = self.init_screen();
                         self.ui = Some(UI::new(self.state.as_ref().unwrap()));
                     }
                 }
                 // End fetch state
 
                 if self.run && k % 5 == 0 {
-                    self.render(screen_size, &mut itoa_buf);
+                    self.render(&mut itoa_buf);
                 }
             } else {
                 sleep(DELAY / 2);
@@ -672,15 +679,15 @@ impl CorApp {
     }
 
     /// Render the current [`State`].
-    fn render(&mut self, screen_size: CGSize, itoa_buf: &mut Buffer) {
+    fn render(&mut self, itoa_buf: &mut Buffer) {
         let pool = ManuallyDrop::new(AutoReleasePool::new());
         // Render start.
-        unsafe {
-            let background: id = msg_send![class!(NSColor), blackColor];
-            let _: () = msg_send![&self.screen.as_ref().unwrap().0, lockFocusFlipped:Bool::YES];
-            // Draw background
-            let _: () = msg_send![background, drawSwatchInRect:CGRect::new(&CGPoint::new(0., 0.), &screen_size)];
-        }
+        self.game_window
+            .delegate
+            .as_mut()
+            .unwrap()
+            .renderer
+            .init_frame();
         let state = self.state.as_ref().unwrap();
         let ui = self.ui.as_ref().unwrap();
         let tile_var = self.tile_variant.as_ref().unwrap();
@@ -961,9 +968,13 @@ impl CorApp {
         );
         // Draw line.
         draw_line(base_y);
-        unsafe {
-            let _: () = msg_send![&self.screen.as_ref().unwrap().0, unlockFocus];
-        }
+        // Finalize frame rendering
+        self.game_window
+            .delegate
+            .as_mut()
+            .unwrap()
+            .renderer
+            .finalize_frame();
 
         // Flush.
         sync_main_thread(|| {
@@ -972,15 +983,15 @@ impl CorApp {
                 .delegate
                 .as_ref()
                 .unwrap()
-                .game_view
-                .set_needs_display(true);
+                .renderer
+                .set_view_needs_display(true);
         });
 
         pool.drain();
     }
 
-    /// Returns `(screen_size, old_frame)`.
-    fn init_screen(&mut self) -> (CGSize, CGRect) {
+    /// Returns `old_frame`.
+    fn init_screen(&mut self) -> CGRect {
         let screen_size = CGSize::new(
             i16::max(
                 (self.ui.as_ref().unwrap().xlen + 2) as i16 * TILE_WIDTH,
@@ -993,9 +1004,6 @@ impl CorApp {
         );
         let old_frame: CGRect;
         unsafe {
-            let alloc: id = msg_send![class!(NSImage), alloc];
-            let obj: id = msg_send![alloc, initWithSize:screen_size];
-            self.screen = Some(Image::with(obj));
             // Resize window to fit `screen`.
             old_frame = msg_send![&self.game_window.objc, frame];
             let old_content: CGRect =
@@ -1016,11 +1024,11 @@ impl CorApp {
         }
         self.game_window
             .delegate
-            .as_ref()
+            .as_mut()
             .unwrap()
-            .game_view
-            .set_image(self.screen.as_ref().unwrap());
-        (screen_size, old_frame)
+            .renderer
+            .init_renderer(screen_size);
+        old_frame
     }
 }
 
@@ -1117,7 +1125,7 @@ struct GameWindow {
     window: OnceAssign<Window>,
 
     err_msg: Label,
-    game_view: ImageView,
+    renderer: Renderer,
 }
 
 impl GameWindow {
@@ -1125,7 +1133,7 @@ impl GameWindow {
         Self {
             window: OnceAssign::new(),
             err_msg: Label::new(),
-            game_view: ImageView::new(),
+            renderer: Renderer::new(),
         }
     }
 
