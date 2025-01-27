@@ -2,13 +2,21 @@
 
 use std::mem;
 
-use objc2::{rc::Retained, runtime::ProtocolObject, ClassType};
-use objc2_foundation::{CGRect, CGSize, MainThreadMarker, NSUInteger};
+use objc2::{
+    ffi::id,
+    rc::Retained,
+    runtime::{AnyObject, ProtocolObject},
+    ClassType,
+};
+use objc2_foundation::{CGRect, CGSize, MainThreadMarker, NSDictionary, NSUInteger};
 use objc2_metal::{
     MTLBlitCommandEncoder, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue,
     MTLCreateSystemDefaultDevice, MTLDevice, MTLDrawable, MTLOrigin, MTLSize, MTLTexture,
 };
-use objc2_metal_kit::{MTKTextureLoader, MTKView};
+use objc2_metal_kit::{
+    MTKTextureLoader, MTKTextureLoaderOption, MTKTextureLoaderOptionOrigin,
+    MTKTextureLoaderOriginFlippedVertically, MTKView,
+};
 use objc2_quartz_core::CAMetalDrawable;
 
 use crate::{app::CorApp, util::app_from_objc};
@@ -16,7 +24,7 @@ use crate::{app::CorApp, util::app_from_objc};
 use super::Texture;
 
 const SLICE: NSUInteger = 0;
-const MIPMAP_LEVEL: NSUInteger = 1;
+const MIPMAP_LEVEL: NSUInteger = 0;
 
 /// Helper macro for creating texture objects.
 macro_rules! texture {
@@ -33,7 +41,12 @@ macro_rules! texture {
                             $name: loader
                                 .newTextureWithData_options_error(
                                     &objc2_foundation::NSData::with_bytes(include_bytes!($file)),
-                                    None,
+                                    Some(
+                                        &*NSDictionary::<MTKTextureLoaderOption, AnyObject>::dictionaryWithObject_forKey(
+                                            MTKTextureLoaderOriginFlippedVertically,
+                                            ProtocolObject::from_ref(MTKTextureLoaderOptionOrigin),
+                                        ),
+                                    ),
                                 )
                                 .expect(concat!("can't load texture ", $file)),
                         )*
@@ -82,19 +95,22 @@ pub fn draw_raw(
             .unwrap()
             .renderer;
         unsafe {
-            renderer.command_encoder.as_ref().unwrap().copyFromTexture_sourceSlice_sourceLevel_sourceOrigin_sourceSize_toTexture_destinationSlice_destinationLevel_destinationOrigin(match texture {
-                    Texture::Tile => &collection.tile,
-                    Texture::Type => &collection.typ,
-                    Texture::Ui => &collection.ui,
-                },
-                SLICE,
-                MIPMAP_LEVEL,
-                MTLOrigin { x: rect.origin.x as _, y: rect.origin.y as _, z: 0 },
-                MTLSize { width: rect.size.width as _, height: rect.size.height as _, depth: 1 },
-                &renderer.current_drawable.as_ref().unwrap().texture(), SLICE,
-                MIPMAP_LEVEL,
-                MTLOrigin { x: dest.x as _, y: dest.y as _, z: 0 },
-            )
+            renderer.command_encoder
+                .as_ref()
+                .unwrap()
+                .copyFromTexture_sourceSlice_sourceLevel_sourceOrigin_sourceSize_toTexture_destinationSlice_destinationLevel_destinationOrigin(
+                    match texture {
+                        Texture::Tile => &collection.tile,
+                        Texture::Type => &collection.typ,
+                        Texture::Ui => &collection.ui,
+                    },
+                    SLICE, MIPMAP_LEVEL,
+                    MTLOrigin { x: rect.origin.x as _, y: rect.origin.y as _, z: 0 },
+                    MTLSize { width: rect.size.width as _, height: rect.size.height as _, depth: 1 },
+                    &renderer.current_drawable.as_ref().unwrap().texture(),
+                    SLICE, MIPMAP_LEVEL,
+                    MTLOrigin { x: dest.x as _, y: dest.y as _, z: 0 },
+                )
         };
     })
 }
@@ -123,6 +139,8 @@ impl Renderer {
             )
         });
         unsafe {
+            TEXTURE.with(|collection| view.setColorPixelFormat(collection.tile.pixelFormat()));
+            view.setFramebufferOnly(false);
             view.setPaused(true);
             view.setEnableSetNeedsDisplay(true);
             view.setAutoResizeDrawable(false);
@@ -207,11 +225,11 @@ impl Renderer {
             .command_buffer
             .take()
             .expect("called Metal Renderer::finalize_frame() but command_buffer is None");
+        command_buffer.commit();
         command_buffer.waitUntilScheduled();
         self.current_drawable
             .take()
             .expect("called Metal Renderer::finalize_frame() but current_drawable is None")
             .present();
-        command_buffer.commit();
     }
 }
