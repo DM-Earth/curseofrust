@@ -3,7 +3,6 @@
 use std::mem;
 
 use objc2::{
-    ffi::id,
     rc::Retained,
     runtime::{AnyObject, ProtocolObject},
     ClassType,
