@@ -49,7 +49,7 @@ impl MultiplayerClient<'_> {
     }
 }
 
-impl<'env> control::Client for MultiplayerClient<'env> {
+impl control::Client for MultiplayerClient<'_> {
     type Error = Infallible;
 
     #[inline(always)]

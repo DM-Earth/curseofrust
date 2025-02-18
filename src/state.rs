@@ -271,7 +271,7 @@ impl State {
                 if self
                     .grid
                     .tile(Pos(i as i32, j as i32))
-                    .map_or(false, |t| matches!(t, Tile::Mine(_)))
+                    .is_some_and(|t| matches!(t, Tile::Mine(_)))
                 {
                     let mut owner = Some(Player::NEUTRAL);
                     for dir in Pos::DIRS {
@@ -546,29 +546,21 @@ impl UI {
             in_segment!(pos.1, 0, state.grid.height() as i32 - 1),
         );
 
-        if state.grid.tile(pos).map_or(false, Tile::is_visible) {
+        if state.grid.tile(pos).is_some_and(Tile::is_visible) {
             self.cursor = pos;
         } else if state
             .grid
             .tile(Pos(self.cursor.0, pos.1))
-            .map_or(false, Tile::is_visible)
+            .is_some_and(Tile::is_visible)
         {
             self.cursor.1 = pos.1;
         } else {
             let i = in_segment!(pos.0 - 1, 0, state.grid.width() as i32 - 1);
-            if state
-                .grid
-                .tile(Pos(i, pos.1))
-                .map_or(false, Tile::is_visible)
-            {
+            if state.grid.tile(Pos(i, pos.1)).is_some_and(Tile::is_visible) {
                 self.cursor = Pos(i, pos.1)
             } else {
                 let i = in_segment!(pos.0 + 1, 0, state.grid.width() as i32 - 1);
-                if state
-                    .grid
-                    .tile(Pos(i, pos.1))
-                    .map_or(false, Tile::is_visible)
-                {
+                if state.grid.tile(Pos(i, pos.1)).is_some_and(Tile::is_visible) {
                     self.cursor = Pos(i, pos.1)
                 }
             }

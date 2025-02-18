@@ -805,7 +805,7 @@ impl Grid {
         factor: i32,
     ) {
         let (xu, yu) = (x as usize, y as usize);
-        if !self.tile(Pos(x, y)).map_or(false, Tile::is_habitable) {
+        if !self.tile(Pos(x, y)).is_some_and(Tile::is_habitable) {
             return;
         }
 
