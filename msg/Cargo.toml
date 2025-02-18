@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 curseofrust = { path = "../" }
-bytemuck = "1.16.1"
+bytemuck = "1.21"

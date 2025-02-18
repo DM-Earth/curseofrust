@@ -15,8 +15,6 @@ cli-parser = { path = "../cli", package = "curseofrust-cli-parser" }
 local-ip-address = "0.6"
 msg = { path = "../msg", package = "curseofrust-msg" }
 itoa = "1.0.11"
-# Doubling objc2 because cacao uses a weird beta version of it.
-objc2 = { version = "0.5.2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cacao = { git = "https://github.com/ryanmcgrath/cacao/", rev = "e3bbb9366c8cf5a5474c5b134ae60e9641da3b7b" }
@@ -25,6 +23,8 @@ objc2-metal = { version = "0.2.2", optional = true }
 objc2-metal-kit = { version = "0.2.2", optional = true }
 objc2-foundation = { version = "0.2.2", optional = true }
 objc2-quartz-core = { version = "0.2.2", optional = true }
+# Doubling objc2 because cacao uses a weird beta version of it.
+objc2 = { version = "0.5.2", optional = true }
 
 [package.metadata.bundle]
 name = "Curse of Rust"

@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-unisock = { git = "https://codeberg.org/DM-Earth/unisock.git", branch = "main", package = "unisock" }
-unisock-smol = { git = "https://codeberg.org/DM-Earth/unisock.git", branch = "main", package = "unisock-smol" }
-unisock-smol-tungstenite = { git = "https://codeberg.org/DM-Earth/unisock.git", branch = "main", package = "unisock-smol-tungstenite", optional = true }
+unisock = "1.0"
+unisock-smol = "0.1"
+unisock-smol-tungstenite = { version = "0.0.1", optional = true }
 
 [features]
 ws = ["dep:unisock-smol-tungstenite"]
