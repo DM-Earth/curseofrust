@@ -2,6 +2,15 @@
 name = "curseofrust"
 version = "0.1.0"
 edition = "2021"
+authors = [
+    "Jiening Yu <jiening.yu@outlook.com>",
+    "C191239 <zhushunzhong2025@i.pkuschool.edu.cn>",
+]
+description = "Tiny RTS game where you struggle with bots or friends"
+repository = "https://codeberg.org/DM-Earth/curseofrust"
+license = "AGPL-3.0-or-later"
+keywords = []
+categories = ["games"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -2,6 +2,12 @@
 name = "curseofrust-cli-parser"
 version = "0.1.0"
 edition = "2021"
+authors = ["Jiening Yu <jiening.yu@outlook.com>"]
+description = "Simple CLI arguments parser for curseofrust"
+repository = "https://codeberg.org/DM-Earth/curseofrust"
+license = "AGPL-3.0-or-later"
+keywords = []
+categories = ["game-development"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,7 +17,3 @@ clap_lex = "0.7"
 
 [features]
 net-proto = []
-
-[[bin]]
-name = "curseofrust"
-path = "src/main.rs"

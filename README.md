@@ -4,6 +4,13 @@ Curseofrust is [curseofwar](https://github.com/a-nikolaev/curseofwar) (Real Time
 
 The game supports both singleplayer and multiplayer, along with different platforms and networking protocols.
 
+## Common Crates
+
+- **`curseofrust`**: The root crate supports the game (grid, bots, etc.).
+- `curseofrust-net-foundation`: Bare networking layer on the top of [`unisock`](https://codeberg.org/DM-Earth/unisock).
+- `curseofrust-msg`: Curseofwar messaging protocol implementation.
+- `curseofrust-cli-parser`: Simple CLI arguments parser for curseofrust.
+
 ## Platforms
 
 - `curseofrust-console`: TUI/CLI implementation. Supports multiplayer.
@@ -16,7 +23,7 @@ Curseofrust supports following networking protocols:
 
 - `udp`: Fully compatible with curseofwar protocol.
 - `tcp`
-- `ws`: The WebSocket protocol. Currently not useable.
+- `ws`: Work-in-progress WebSocket support.
 
 ## Arguments
 
@@ -47,7 +54,7 @@ Use keyboard to control the game. Same as `curseofwar`.
 
 ##### Termux
 
-A touchscreen keymap designed for playing with *Termux*.
+A touchscreen keymap designed for playing with _Termux_.
 
 - Tapping an unselected tile to control cursor position.
 - Tapping the selected tile to toggle flag.
@@ -60,7 +67,7 @@ A touchscreen keymap designed for playing with *Termux*.
 
 ##### Hybrid
 
-*Keyboard* mode with following features:
+_Keyboard_ mode with following features:
 
 - Clicking an unselected tile to control cursor position.
 - Clicking the selected tile to toggle flag.
