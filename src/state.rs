@@ -7,6 +7,7 @@ use crate::{
 };
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct UI {
     pub cursor: Pos,
     /// Number of tiles to skip in the beginning of
@@ -31,7 +32,7 @@ pub struct Timeline {
 impl Timeline {
     pub const MAX_MARKS: usize = 72;
 
-    pub fn update(&mut self, time: u64, grid: &Grid) {
+    pub(crate) fn update(&mut self, time: u64, grid: &Grid) {
         if self.mark + 1 < Self::MAX_MARKS {
             self.mark += 1;
         } else {
