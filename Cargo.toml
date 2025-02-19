@@ -3,8 +3,8 @@ name = "curseofrust"
 version = "0.1.0"
 edition = "2021"
 authors = [
-    "Jiening Yu <jiening.yu@outlook.com>",
     "C191239 <zhushunzhong2025@i.pkuschool.edu.cn>",
+    "Jiening Yu <jiening.yu@outlook.com>",
 ]
 description = "Tiny RTS game where you struggle with bots or friends"
 repository = "https://codeberg.org/DM-Earth/curseofrust"
@@ -19,7 +19,7 @@ fastrand = "2.3.0"
 
 [workspace]
 resolver = "2"
-members = ["gui-cocoa", "console", "cli", "msg", "server", "net-foundation"]
+members = ["cli", "console", "msg", "net-foundation", "server"]
 
 [profile.release]
 panic = "abort"

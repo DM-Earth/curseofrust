@@ -14,7 +14,7 @@ The game supports both singleplayer and multiplayer, along with different platfo
 ## Platforms
 
 - `curseofrust-console`: TUI/CLI implementation. Supports multiplayer.
-- `curseofrust-gui-cocoa`: GUI implementation based on Cocoa for macOS. Currently does not support multiplayer.
+- `curseofrust-gui-cocoa`: GUI implementation based on Cocoa for macOS. Currently does not support multiplayer. It is now hosted [here](https://codeberg.org/DM-Earth/curseofrust-gui).
 - `curseofrust-server`: The dedicated server implementation with a CLI interface.
 
 ## Protocols
@@ -74,7 +74,7 @@ _Keyboard_ mode with following features:
 
 ### `curseofrust-gui-cocoa`
 
-GUI implementation based on Cocoa for macOS. Currently does not support multiplayer.
+GUI implementation based on Cocoa for macOS. Currently does not support multiplayer. It is now hosted [here](https://codeberg.org/DM-Earth/curseofrust-gui).
 
 ### `curseofrust-server`
 
