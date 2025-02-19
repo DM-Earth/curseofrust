@@ -12,10 +12,10 @@ categories = ["games"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-curseofrust = { path = ".." }
-curseofrust-cli-parser = { path = "../cli", features = ["net-proto"] }
-curseofrust-msg = { path = "../msg" }
-curseofrust-net-foundation = { path = "../net-foundation" }
+curseofrust = "0.1"
+curseofrust-cli-parser = { version = "0.1", features = ["net-proto"] }
+curseofrust-msg = "0.1"
+curseofrust-net-foundation = "0.1"
 futures-lite = "2.6"
 async-io = "2.4"
 async-executor = "1.13"

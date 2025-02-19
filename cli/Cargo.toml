@@ -12,7 +12,7 @@ categories = ["game-development"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-curseofrust = { path = ".." }
+curseofrust = "0.1"
 clap_lex = "0.7"
 
 [features]

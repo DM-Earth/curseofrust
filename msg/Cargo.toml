@@ -10,5 +10,5 @@ keywords = []
 categories = ["game-development"]
 
 [dependencies]
-curseofrust = { path = "../" }
+curseofrust = "0.1"
 bytemuck = "1.21"

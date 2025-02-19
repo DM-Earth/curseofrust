@@ -12,12 +12,12 @@ categories = ["games"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-curseofrust = { path = ".." }
+curseofrust = "0.1"
 build-time = "0.1"
 fastrand = "2.3"
-cli-parser = { path = "../cli", package = "curseofrust-cli-parser" }
+cli-parser = { version = "0.1", package = "curseofrust-cli-parser" }
 local-ip-address = "0.6"
-msg = { path = "../msg", package = "curseofrust-msg" }
+msg = { version = "0.1", package = "curseofrust-msg" }
 itoa = "1.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
