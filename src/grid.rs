@@ -9,6 +9,7 @@ pub const FLAG_POWER: i32 = 8;
 ///
 /// The map is stored in this type.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Grid {
     width: u32,
     height: u32,
@@ -19,7 +20,7 @@ pub struct Grid {
 
 /// Descriptor for method [`Grid::conflict`].
 #[derive(Debug)]
-pub struct ConflictDescriptor<'a> {
+pub(crate) struct ConflictDescriptor<'a> {
     pub locs: &'a [Pos],
 
     /// Number of starting locations.
@@ -108,7 +109,7 @@ impl Grid {
     /// Places at most 4 players at the corners of the map,
     /// gives them a fortress and 2 mines nearby.
     /// One of those players is always controlled by a human player.
-    pub fn conflict(&mut self, descriptor: ConflictDescriptor<'_>) -> crate::Result<()> {
+    pub(crate) fn conflict(&mut self, descriptor: ConflictDescriptor<'_>) -> crate::Result<()> {
         let ConflictDescriptor {
             locs,
             locs_num,
@@ -457,7 +458,7 @@ impl Tile {
         this
     }
 
-    pub fn set_habitable(&mut self, land: HabitLand) {
+    pub(crate) fn set_habitable(&mut self, land: HabitLand) {
         let l = land;
         if let Self::Habitable { land, .. } = self {
             *land = l
@@ -605,9 +606,9 @@ impl Stencil {
         }
     }
 
-    /// Applies thie stencil to the given grid and
+    /// Applies this stencil to the given grid and
     /// nation locations slice.
-    pub fn apply(self, grid: &mut Grid, d: u32, locs: &mut [Pos]) {
+    pub(crate) fn apply(self, grid: &mut Grid, d: u32, locs: &mut [Pos]) {
         macro_rules! ij {
             (x, $i:expr, $j:expr) => {
                 0.5 * ($j as f32) + ($i as f32)
@@ -695,6 +696,7 @@ impl Stencil {
 ///
 /// Each player has his own flag grid.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct FlagGrid {
     pub width: u32,
     pub height: u32,
@@ -787,7 +789,7 @@ impl FlagGrid {
     }
 
     #[inline]
-    pub fn call(&self, Pos(i, j): Pos) -> Option<i32> {
+    pub(crate) fn call(&self, Pos(i, j): Pos) -> Option<i32> {
         self.call
             .get(i as usize)
             .and_then(|a| a.get(j as usize))
@@ -796,7 +798,7 @@ impl FlagGrid {
 }
 
 impl Grid {
-    pub fn spread(
+    pub(crate) fn spread(
         &self,
         u: &mut [impl IndexMut<usize, Output = i32>],
         v: &mut [impl IndexMut<usize, Output = i32>],
@@ -822,7 +824,12 @@ impl Grid {
         }
     }
 
-    pub fn even(&self, v: &mut [impl IndexMut<usize, Output = i32>], Pos(x, y): Pos, val: i32) {
+    pub(crate) fn even(
+        &self,
+        v: &mut [impl IndexMut<usize, Output = i32>],
+        Pos(x, y): Pos,
+        val: i32,
+    ) {
         if x < 0
             || x >= self.width as i32
             || y < 0

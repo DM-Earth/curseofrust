@@ -1,5 +1,5 @@
 #[cfg(feature = "ws")]
-pub fn err_ws2io(err: unisock_smol_tungstenite::WsError) -> std::io::Error {
+pub(crate) fn err_ws2io(err: unisock_smol_tungstenite::WsError) -> std::io::Error {
     match err {
         unisock_smol_tungstenite::WsError::ConnectionClosed => std::io::Error::new(
             std::io::ErrorKind::ConnectionAborted,

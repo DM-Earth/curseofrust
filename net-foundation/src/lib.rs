@@ -32,6 +32,7 @@ pub enum Protocol {
 pub struct Handle(HandleInner);
 
 #[derive(Debug)]
+#[non_exhaustive]
 enum HandleInner {
     Tcp(unisock_smol::Tcp),
     Udp(unisock_smol::UdpSingle),
@@ -128,6 +129,7 @@ impl Handle {
 pub struct Listener<'a>(ListenerInner<'a>);
 
 #[derive(Debug)]
+#[non_exhaustive]
 enum ListenerInner<'a> {
     Tcp(unisock_smol::tcp::Listener),
     Udp(&'a unisock_smol::UdpSingle),
@@ -162,6 +164,7 @@ impl Listener<'_> {
 pub struct Connection<'a>(ConnectionInner<'a>);
 
 #[derive(Debug)]
+#[non_exhaustive]
 enum ConnectionInner<'a> {
     Tcp(unisock_smol::tcp::Connection),
     Udp(unisock_smol::udp_single_sock::Connection<'a>),
@@ -191,7 +194,6 @@ impl Connection<'_> {
     }
 
     /// Poll the connection for writability.
-    #[inline(always)]
     pub fn poll_writable(&self, cx: &mut std::task::Context<'_>) -> bool {
         match &self.0 {
             ConnectionInner::Tcp(back) => back.poll_writable(cx),
@@ -202,7 +204,6 @@ impl Connection<'_> {
     }
 
     /// Close the connection.
-    #[inline(always)]
     pub async fn close(self) -> Result<(), std::io::Error> {
         match self.0 {
             ConnectionInner::Tcp(back) => back.close().await,

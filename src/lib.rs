@@ -48,6 +48,7 @@ impl Display for Player {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// Difference of evaluation result and population variance
     /// out of bound in the `conflict` function.

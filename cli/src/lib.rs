@@ -220,6 +220,7 @@ pub struct Options {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     MissingValue {
         arg: &'static str,
@@ -301,7 +302,7 @@ _/ /  \/ | |X _/ __/ __\  /   \   /  | |___| | | |  / __/_  __/
  \ \__/\ __X_| \___/___/  \___/| |   | | \ \_ X__ /___ /  \__/
   \____/                       |/    |_\  \__/
 
-  Made by DM Earth in 2024.
+  Made by DM Earth in 2024-2025.
 
   Command line arguments:
 

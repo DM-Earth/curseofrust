@@ -107,6 +107,7 @@ pub enum MultiplayerOpts {
 }
 
 /// Game state.
+#[non_exhaustive]
 pub struct State {
     /// The map grid.
     pub grid: Grid,

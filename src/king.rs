@@ -5,6 +5,7 @@ use crate::{
 
 /// Data about each country.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Country {
     pub player: Player,
     pub gold: u64,
@@ -67,7 +68,7 @@ impl Grid {
     /// A fortress degrades to a town,
     /// a town degrades to a village,
     /// and a village is destroyed.
-    pub fn degrade(&mut self, pos: Pos) -> crate::Result<()> {
+    pub(crate) fn degrade(&mut self, pos: Pos) -> crate::Result<()> {
         let Tile::Habitable { land, .. } = self.tile_mut(pos).ok_or(Error::PosOutOfBound(pos))?
         else {
             return Err(Error::TileNotHabitable(pos));
@@ -150,7 +151,7 @@ impl Strategy {
 impl King {
     /// Creates a new king.
     #[inline]
-    pub fn new(player: Player, strategy: Strategy, width: u32, height: u32) -> Self {
+    pub(crate) fn new(player: Player, strategy: Strategy, width: u32, height: u32) -> Self {
         Self {
             values: vec![vec![0; height as usize]; width as usize],
             player,
@@ -161,7 +162,7 @@ impl King {
     /// Evaluates the grid.
     ///
     /// Difficulty determines the quality of evaluation.
-    pub fn evaluate_map(&mut self, grid: &Grid, difficulty: Difficulty) {
+    pub(crate) fn evaluate_map(&mut self, grid: &Grid, difficulty: Difficulty) {
         self.values.iter_mut().for_each(|a| a.fill(0));
         let mut u = self.values.clone();
 
@@ -227,7 +228,7 @@ impl King {
     /// was built.
     ///
     /// The strategy is same for all AIs.
-    pub fn build(&self, grid: &mut Grid, country: &mut Country) -> bool {
+    pub(crate) fn build(&self, grid: &mut Grid, country: &mut Country) -> bool {
         assert_eq!(self.player, country.player);
 
         let mut v_best = 0.0;
@@ -284,7 +285,7 @@ impl King {
 
     /// Place flags based on the strategy.
     #[inline]
-    pub fn place_flags(&self, grid: &Grid, fg: &mut FlagGrid) {
+    pub(crate) fn place_flags(&self, grid: &Grid, fg: &mut FlagGrid) {
         macro_rules! action {
             ($f:ident) => {
                 $f(self, grid, fg)

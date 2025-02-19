@@ -66,6 +66,7 @@ pub mod server_msg {
 /// Class of tiles.
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[non_exhaustive]
 pub enum TileClass {
     #[doc(alias = "Abyss")]
     Void = 0,
