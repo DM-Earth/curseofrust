@@ -208,6 +208,7 @@ impl Grid {
             let Player(owner) = tile.owner();
             if let Tile::Habitable { units, .. } = tile {
                 units[owner as usize] = 10;
+                units[0] = 10;
             }
         }
 
@@ -390,6 +391,8 @@ pub enum Tile {
     Habitable {
         land: HabitLand,
         /// Population information of this tile.
+        ///
+        /// Item at index zero is sum of units.
         units: [u16; MAX_PLAYERS],
         owner: Player,
     },

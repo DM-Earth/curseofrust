@@ -38,8 +38,17 @@ pub fn apply_s2c_msg(state: &mut State, data: S2CData) -> curseofrust::Result<()
             let mut t: Tile = target.into();
             let owner = data.owner[x][y];
             t.set_owner(Player(owner as u32));
+            let mut pop = 0;
             if let Some(unit) = t.units_mut().and_then(|us| us.get_mut(owner as usize)) {
-                *unit = u16::from_be(data.pop[x][y]);
+                *unit = if owner == 0 {
+                    0
+                } else {
+                    u16::from_be(data.pop[x][y])
+                };
+                pop = *unit;
+            };
+            if let Some(us) = t.units_mut() {
+                us[0] = pop;
             }
             *tile = t;
 

@@ -182,7 +182,7 @@ where
             curseofrust::grid::Tile::Habitable { land, units, owner } => {
                 cursor!();
                 let symbol = match land {
-                    curseofrust::grid::HabitLand::Grassland => pop_to_symbol(units.iter().sum()),
+                    curseofrust::grid::HabitLand::Grassland => pop_to_symbol(units[0]),
                     curseofrust::grid::HabitLand::Village => VILLAGE,
                     curseofrust::grid::HabitLand::Town => TOWN,
                     curseofrust::grid::HabitLand::Fortress => FORTRESS,
@@ -232,11 +232,10 @@ where
     )?;
 
     if let Some(tile) = st.s.grid.tile(st.ui.cursor) {
-        for (pop, coun) in tile
-            .units()
+        for (pop, coun) in tile.units()[1..]
             .iter()
             .copied()
-            .zip(&st.s.countries)
+            .zip(&st.s.countries[1..])
             .filter(|(pop, _)| *pop > 0)
         {
             queue!(

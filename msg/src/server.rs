@@ -50,7 +50,12 @@ impl S2CData {
             for (y, t) in arr.iter().enumerate() {
                 let ow = t.owner().0;
                 owner[x][y] = ow as u8;
-                pop[x][y] = t.units()[ow as usize].to_be();
+                pop[x][y] = if ow == 0 {
+                    0u16
+                } else {
+                    t.units()[ow as usize]
+                }
+                .to_be();
                 tile[x][y] = TileClass::from(t) as u8;
             }
         }

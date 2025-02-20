@@ -315,7 +315,7 @@ fn action_aggr_greedy(king: &King, grid: &Grid, fg: &mut FlagGrid) {
 
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
+                let enemy = units[0] - army;
                 if (val * (2 * enemy as i32 - army as i32)) as f32 * (army as f32).powf(0.5)
                     > 5000.0
                 {
@@ -341,7 +341,7 @@ fn action_one_greedy(king: &King, grid: &Grid, fg: &mut FlagGrid) {
             if let Tile::Habitable { units, .. } = tile {
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
+                let enemy = units[0] - army;
                 let v = (val * (5 * enemy as i32 - army as i32)) as f32 * (army as f32).powf(0.5);
                 if v > v_best && v > 5000.0 {
                     v_best = v;
@@ -363,7 +363,7 @@ fn action_persistent_greedy(king: &King, grid: &Grid, fg: &mut FlagGrid) {
             if let Tile::Habitable { units, .. } = tile {
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
+                let enemy = units[0] - army;
                 let v = (val as f32 * (2.5 * enemy as f32 - army as f32) * (army as f32).powf(0.7))
                     .max(if enemy > army {
                         (val * (MAX_POPULATION as i32 - enemy as i32 + army as i32)) as f32
@@ -391,7 +391,7 @@ fn action_opportunist(king: &King, grid: &Grid, fg: &mut FlagGrid) {
 
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy = units[..pl].iter().sum::<u16>() + units[pl + 1..].iter().sum::<u16>();
+                let enemy = units[0] - army;
                 if enemy > army
                     && (val * (MAX_POPULATION as i32 - enemy as i32 + army as i32)) as f32
                         * (army as f32).powf(0.5)
@@ -479,7 +479,7 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
 
                 let pl = king.player.0 as usize;
                 let army = units[pl];
-                let enemy = units.iter().sum::<u16>() - army;
+                let enemy = units[0] - army;
                 let v = (val * (MAX_POPULATION as i32 - (enemy as i32 - army as i32))) as f32
                     * (army as f32).sqrt();
 

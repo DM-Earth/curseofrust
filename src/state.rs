@@ -313,12 +313,15 @@ impl State {
                 } = self.grid.raw_tiles_mut()[i as usize][j as usize]
                 {
                     let my_pops = *units;
-                    let total_pop = my_pops.into_iter().sum::<u16>();
+                    let total_pop = my_pops[0];
                     let enemy_pops = my_pops.map(|p| total_pop - p);
 
                     let mut defender_dmg = 0;
                     for (p, (my_pop, enemy_pop)) in my_pops.into_iter().zip(enemy_pops).enumerate()
                     {
+                        if p == 0 {
+                            continue;
+                        }
                         let mut dmg = 0;
                         if total_pop != 0 {
                             dmg = rnd_round!(enemy_pop as f32 * my_pop as f32 / total_pop as f32);
@@ -351,9 +354,11 @@ impl State {
 
                     // Determine ownership
                     *owner = Player::NEUTRAL;
-                    for p in 0..MAX_PLAYERS {
-                        if units[p] > units[owner.0 as usize] {
-                            *owner = Player(p as u32)
+                    let mut o_unit = 0;
+                    for (pr, &u) in units[1..].iter().enumerate() {
+                        if u > o_unit {
+                            *owner = Player((pr + 1) as u32);
+                            o_unit = u;
                         }
                     }
 
@@ -399,7 +404,7 @@ impl State {
         while i != i_end {
             let mut j = j_start;
             while j != j_end {
-                for p in 0..MAX_PLAYERS {
+                for p in 1..MAX_PLAYERS {
                     let Some(tile) = self.grid.tile(Pos(i, j)) else {
                         continue;
                     };
@@ -451,9 +456,12 @@ impl State {
                     continue;
                 };
                 *owner = Player::NEUTRAL;
-                for p in 0..MAX_PLAYERS {
-                    if units[p] > units[owner.0 as usize] {
-                        *owner = Player(p as u32);
+                units[0] = units[1..].iter().sum::<u16>();
+                let mut o_unit = 0;
+                for (pr, &u) in units[1..].iter().enumerate() {
+                    if u > o_unit {
+                        *owner = Player((pr + 1) as u32);
+                        o_unit = u;
                     }
                 }
             }
@@ -473,10 +481,10 @@ impl State {
             _ => 0,
         };
         if add_gold > 0 {
-            for i in 0..MAX_PLAYERS {
+            for i in 1..MAX_PLAYERS {
                 let pl = Player(i as u32);
                 let c = &mut self.countries[i];
-                if !pl.is_neutral() && pl != self.controlled && c.gold > 0 {
+                if pl != self.controlled && c.gold > 0 {
                     c.gold += add_gold;
                 }
             }
