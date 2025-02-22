@@ -36,11 +36,13 @@ impl Timeline {
         if self.mark + 1 < Self::MAX_MARKS {
             self.mark += 1;
         } else {
-            for i in 0..Self::MAX_MARKS {
-                self.time[i] = self.time[i + 1];
-                for p in 0..MAX_PLAYERS {
-                    self.data[p][i] = self.data[p][i + 1];
-                }
+            let time_last = *self.time.last().unwrap();
+            self.time.rotate_left(1);
+            *self.time.last_mut().unwrap() = time_last;
+            for d in &mut self.data {
+                let d_last = *d.last().unwrap();
+                d.rotate_left(1);
+                *d.last_mut().unwrap() = d_last;
             }
         }
 
@@ -326,7 +328,7 @@ impl State {
                         if total_pop != 0 {
                             dmg = rnd_round!(enemy_pop as f32 * my_pop as f32 / total_pop as f32);
                         }
-                        units[p] = (my_pop as i32 - dmg).max(0) as u16;
+                        units[p] = my_pop.saturating_sub(dmg as u16);
                         if owner == Player(p as u32) {
                             defender_dmg = dmg;
                         }
@@ -435,11 +437,11 @@ impl State {
                             else {
                                 unreachable!()
                             };
-                            units[p] = (units[p] as i32 + dpop).max(0) as u16;
+                            units[p] = units[p].saturating_add(dpop as u16);
                             if let Some(Tile::Habitable { units, .. }) =
                                 self.grid.tile_mut(Pos(i, j))
                             {
-                                units[p] = (units[p] as i32 - dpop).max(0) as u16;
+                                units[p] = units[p].saturating_sub(dpop as u16);
                             }
                         }
                     }
