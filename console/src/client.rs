@@ -16,7 +16,7 @@ use curseofrust_msg::{bytemuck, client_msg::*, C2SData, S2CData, C2S_SIZE, S2C_S
 use curseofrust_net_foundation::{Connection, Handle, Protocol};
 use local_ip_address::{local_ip, local_ipv6};
 
-use crate::{control, DirectBoxedError, State};
+use crate::{control, DirectBoxedError, EventStream, State};
 
 #[derive(Copy, Clone)]
 struct MultiplayerClient<'env> {
@@ -168,7 +168,6 @@ pub(crate) fn run<W: Write>(
         }
 
         let st = RefCell::new(&mut *st);
-        let mut events = crossterm::event::EventStream::new();
 
         futures_lite::future::block_on(executor.run(async {
             'game: loop {
@@ -225,7 +224,7 @@ pub(crate) fn run<W: Write>(
                 let recv_input = async {
                     loop {
                         if let Ok(ControlFlow::Break(_)) =
-                            control::accept(|| WrappingCell(st.borrow_mut()), &mut events, client)
+                            control::accept(|| WrappingCell(st.borrow_mut()), EventStream, client)
                                 .await
                         {
                             return Ok(ControlFlow::Break(()));

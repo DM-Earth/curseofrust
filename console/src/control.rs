@@ -8,7 +8,7 @@ use crossterm::{
 };
 use curseofrust::{grid::Tile, Pos};
 use curseofrust_cli_parser::ControlMode;
-use futures_lite::StreamExt as _;
+use futures_lite::{Stream, StreamExt as _};
 
 use crate::{output, DirectBoxedError, State};
 
@@ -28,14 +28,15 @@ pub(crate) trait Client {
     fn toggle_pause<W>(&mut self, st: &mut State<W>) -> Result<(), Self::Error>;
 }
 
-pub(crate) async fn accept<W, S>(
+pub(crate) async fn accept<W, S, E>(
     s: impl FnOnce() -> S,
-    ct_events: &mut crossterm::event::EventStream,
+    mut ct_events: E,
     mut client: impl Client,
 ) -> Result<ControlFlow<()>, DirectBoxedError>
 where
     W: std::io::Write,
     S: DerefMut<Target = State<W>>,
+    E: Stream<Item = std::io::Result<crossterm::event::Event>> + Unpin,
 {
     if let Ok(Some(event)) = ct_events.try_next().await {
         let mut stt = s();
