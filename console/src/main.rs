@@ -37,7 +37,7 @@ fn main() -> Result<(), DirectBoxedError> {
     }
 
     let state = curseofrust::state::State::new(b_opt)?;
-    let stdout = std::io::stdout();
+    let stdout = std::io::BufWriter::new(std::io::stdout());
     let mut st = State {
         ui: curseofrust::state::UI::new(&state),
         s: state,
