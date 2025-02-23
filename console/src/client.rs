@@ -8,7 +8,7 @@ use std::{
     ops::{ControlFlow, Deref, DerefMut},
 };
 
-use async_executor::{Executor, LocalExecutor};
+use async_executor::Executor;
 use crossterm::{cursor, execute, terminal};
 use curseofrust::Pos;
 use curseofrust_cli_parser::ControlMode;
