@@ -37,7 +37,7 @@ fn main() -> Result<(), DirectBoxedError> {
     }
 
     let state = curseofrust::state::State::new(b_opt)?;
-    let stdout = std::io::stdout();
+    let stdout = std::io::BufWriter::new(std::io::stdout());
     let mut st = State {
         ui: curseofrust::state::UI::new(&state),
         s: state,
@@ -182,7 +182,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
     }
 
     let mut time = 0i32;
-    let mut events = crossterm::event::EventStream::new();
+    // let mut events = crossterm::event::EventStream::new();
     loop {
         let timer = async_io::Timer::after(DURATION);
         time += 1;
@@ -203,7 +203,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
         st.out.flush()?;
 
         let cond = futures_lite::future::block_on(futures_lite::future::or(
-            control::accept(|| &mut *st, &mut events, SingleplayerClient),
+            control::accept(|| &mut *st, EventStream, SingleplayerClient),
             async {
                 timer.await;
                 Result::<ControlFlow<(), ()>, DirectBoxedError>::Ok(ControlFlow::Continue(()))
@@ -235,5 +235,25 @@ fn slowdown(speed: Speed) -> i32 {
         Speed::Fast => 10,
         Speed::Faster => 5,
         Speed::Fastest => 2,
+    }
+}
+
+/// Listening for crossterm events without threading.
+struct EventStream;
+
+impl futures_lite::stream::Stream for EventStream {
+    type Item = std::io::Result<crossterm::event::Event>;
+
+    #[inline]
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        const CONSTANT_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(0);
+        if matches!(crossterm::event::poll(CONSTANT_TIMEOUT), Ok(true)) {
+            std::task::Poll::Ready(Some(crossterm::event::read()))
+        } else {
+            std::task::Poll::Pending
+        }
     }
 }

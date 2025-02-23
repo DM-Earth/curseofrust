@@ -1,6 +1,6 @@
 [package]
 name = "curseofrust"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = [
     "C191239 <zhushunzhong2025@i.pkuschool.edu.cn>",
