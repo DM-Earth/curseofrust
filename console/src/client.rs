@@ -8,7 +8,7 @@ use std::{
     ops::{ControlFlow, Deref, DerefMut},
 };
 
-use async_executor::LocalExecutor;
+use async_executor::{Executor, LocalExecutor};
 use crossterm::{cursor, execute, terminal};
 use curseofrust::Pos;
 use curseofrust_cli_parser::ControlMode;
@@ -20,7 +20,7 @@ use crate::{control, DirectBoxedError, EventStream, State};
 
 #[derive(Copy, Clone)]
 struct MultiplayerClient<'env> {
-    executor: *const LocalExecutor<'env>,
+    executor: *const Executor<'env>,
     socket: *const UnsafeCell<Connection<'env>>,
 }
 
@@ -139,7 +139,7 @@ pub(crate) fn run<W: Write>(
     let handle = Handle::bind(local, protocol)?;
     let socket = UnsafeCell::new(futures_lite::future::block_on(handle.connect(server))?);
 
-    let executor = async_executor::LocalExecutor::new();
+    let executor = async_executor::Executor::new();
     let mut time = 0i32;
     st.s.time = 0;
 

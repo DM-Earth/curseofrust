@@ -231,7 +231,7 @@ dependencies = [
  "crossterm",
  "curseofrust",
  "curseofrust-cli-parser 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "curseofrust-msg 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "curseofrust-msg",
  "curseofrust-net-foundation 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fastrand",
  "futures-lite",
@@ -241,16 +241,6 @@ dependencies = [
 [[package]]
 name = "curseofrust-msg"
 version = "0.1.0"
-dependencies = [
- "bytemuck",
- "curseofrust",
-]
-
-[[package]]
-name = "curseofrust-msg"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fc88f316503e59f26f6929765f5dd89fae4c39317ab51df20edebac3718a347"
 dependencies = [
  "bytemuck",
  "curseofrust",
@@ -284,7 +274,7 @@ dependencies = [
  "async-io",
  "curseofrust",
  "curseofrust-cli-parser 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "curseofrust-msg 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "curseofrust-msg",
  "curseofrust-net-foundation 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fastrand",
  "futures-lite",

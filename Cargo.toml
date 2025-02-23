@@ -27,3 +27,4 @@ lto = "fat"
 
 [patch.crates-io]
 curseofrust = { path = "." }
+curseofrust-msg = { path = "./msg" }
