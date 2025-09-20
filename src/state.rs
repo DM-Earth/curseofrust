@@ -545,8 +545,8 @@ impl UI {
 
         Self {
             cursor,
-            xskip: (xskip_x2 as u16 + 1) / 2,
-            xlen: (xrightmost_x2 as u16 + 1) / 2 - xskip_x2 as u16 / 2,
+            xskip: (xskip_x2 as u16).div_ceil(2),
+            xlen: (xrightmost_x2 as u16).div_ceil(2) - xskip_x2 as u16 / 2,
         }
     }
 

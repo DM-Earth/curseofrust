@@ -82,7 +82,7 @@ impl Handle {
     }
 
     /// Returns the listener.
-    pub fn listen(&self) -> Result<Listener, std::io::Error> {
+    pub fn listen(&'_ self) -> Result<Listener<'_>, std::io::Error> {
         match &self.0 {
             HandleInner::Tcp(back) => back.listen().map(|l| Listener(ListenerInner::Tcp(l))),
             HandleInner::Udp(back) => Ok(Listener(ListenerInner::Udp(back))),
@@ -95,7 +95,7 @@ impl Handle {
     }
 
     /// Connect to the address.
-    pub async fn connect<A>(&self, addr: A) -> Result<Connection, std::io::Error>
+    pub async fn connect<A>(&'_ self, addr: A) -> Result<Connection<'_>, std::io::Error>
     where
         A: ToSocketAddrs,
     {
@@ -139,7 +139,7 @@ enum ListenerInner<'a> {
 
 impl Listener<'_> {
     /// Accept a connection.
-    pub async fn accept(&self) -> Result<(Connection, SocketAddr), std::io::Error> {
+    pub async fn accept(&'_ self) -> Result<(Connection<'_>, SocketAddr), std::io::Error> {
         match &self.0 {
             ListenerInner::Tcp(back) => back
                 .accept()
