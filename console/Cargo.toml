@@ -17,7 +17,7 @@ curseofrust-cli-parser = { path = "../cli", features = ["net-proto"] }
 curseofrust-msg = { path = "../msg", optional = true }
 curseofrust-net-foundation = { path = "../net-foundation", optional = true }
 fastrand = "2.3"
-crossterm = { version = "0.28", features = ["event-stream"] }
+crossterm = { version = "0.29.0", features = ["event-stream"] }
 futures-lite = "2.6"
 async-io = "2.4"
 async-executor = { version = "1.3", optional = true }

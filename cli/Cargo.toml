@@ -13,7 +13,7 @@ categories = ["game-development"]
 
 [dependencies]
 curseofrust = { path = "../" }
-clap_lex = "0.7"
+clap_lex = "1.1.0"
 
 [features]
 net-proto = []
