@@ -1,13 +1,13 @@
 [package]
 name = "curseofrust-msg"
-version = "0.1.1"
-edition = "2021"
 authors = ["Jiening Yu <jiening.yu@outlook.com>"]
 description = "Curseofwar messaging protocol implementation"
-repository = "https://codeberg.org/DM-Earth/curseofrust"
-license = "AGPL-3.0-or-later"
 keywords = []
 categories = ["game-development"]
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 curseofrust = { path = "../" }
