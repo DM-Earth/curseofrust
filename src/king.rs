@@ -432,8 +432,7 @@ fn action_noble(king: &King, grid: &Grid, fg: &mut FlagGrid) {
                 .into_iter()
                 .position(|val| val < vx)
                 .unwrap_or(N.min(MAX_PRIORITY))
-                .checked_sub(1)
-                .unwrap_or_default();
+                .saturating_sub(1);
 
             if i < MAX_PRIORITY && i < N - 1 {
                 let mut locs = self.locs;

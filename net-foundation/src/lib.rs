@@ -112,7 +112,7 @@ impl Handle {
                 },
                 #[cfg(feature = "ws")]
                 HandleInner::WebSocket(back) => match back.connect(addr).await {
-                    Ok(conn) => return Ok(Connection(ConnectionInner::WebSocket(conn))),
+                    Ok(conn) => return Ok(Connection(ConnectionInner::WebSocket(Box::new(conn)))),
                     Err(e) => err = Some(err_ws2io(e)),
                 },
             }
@@ -153,7 +153,7 @@ impl Listener<'_> {
             ListenerInner::WebSocket(back) => back
                 .accept()
                 .await
-                .map(|(c, a)| (Connection(ConnectionInner::WebSocket(c)), a))
+                .map(|(c, a)| (Connection(ConnectionInner::WebSocket(Box::new(c))), a))
                 .map_err(err_ws2io),
         }
     }
@@ -169,7 +169,7 @@ enum ConnectionInner<'a> {
     Tcp(unisock_smol::tcp::Connection),
     Udp(unisock_smol::udp_single_sock::Connection<'a>),
     #[cfg(feature = "ws")]
-    WebSocket(unisock_smol_tungstenite::Connection),
+    WebSocket(Box<unisock_smol_tungstenite::Connection>),
 }
 
 impl Connection<'_> {

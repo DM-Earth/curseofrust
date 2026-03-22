@@ -99,20 +99,19 @@ where
     let args = clap_lex::RawArgs::new(args);
     let mut cursor = args.cursor();
     args.next(&mut cursor); // skip bin
+    let mut short_buf = String::new();
     while let Some(arg) = args.next(&mut cursor) {
         if let Some(mut s) = arg.to_short() {
             while let Some(Ok(flag)) = s.next() {
                 macro_rules! parse {
                     ($a:expr, $t:expr, $vt:ty) => {{
-                        let v: Result<$vt, _> = args
-                            .next(&mut cursor)
+                        short_buf.clear();
+                        short_buf.extend(s.by_ref().map_while(Result::ok));
+                        let v: Result<$vt, _> = (!short_buf.is_empty())
+                            .then_some(&*short_buf)
+                            .or_else(|| args.next(&mut cursor).and_then(|a| a.to_value().ok()))
                             .ok_or_else(|| Error::MissingValue { arg: $a, ty: $t })
-                            .and_then(|a| {
-                                a.to_value_os()
-                                    .to_string_lossy()
-                                    .parse()
-                                    .map_err(From::from)
-                            });
+                            .and_then(|a| a.parse().map_err(From::from));
                         v
                     }};
                     ($a:expr, $t:expr) => {

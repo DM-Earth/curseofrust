@@ -193,7 +193,7 @@ fn run<W: Write>(st: &mut State<W>) -> Result<(), DirectBoxedError> {
         if time.checked_rem(slowdown(st.s.speed)) == Some(0) {
             st.s.kings_move();
             st.s.simulate();
-            if st.s.show_timeline && st.s.time % 10 == 0 {
+            if st.s.show_timeline && st.s.time.is_multiple_of(10) {
                 st.s.update_timeline();
             }
 

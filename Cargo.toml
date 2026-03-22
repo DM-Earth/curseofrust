@@ -1,16 +1,22 @@
 [package]
 name = "curseofrust"
-version = "0.1.1"
-edition = "2021"
 authors = [
     "C191239 <zhushunzhong2025@i.pkuschool.edu.cn>",
     "Jiening Yu <jiening.yu@outlook.com>",
 ]
 description = "Tiny RTS game where you struggle with bots or friends"
-repository = "https://codeberg.org/DM-Earth/curseofrust"
-license = "AGPL-3.0-or-later"
 keywords = []
 categories = ["games"]
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[workspace.package]
+version = "0.1.2"
+edition = "2021"
+repository = "https://codeberg.org/DM-Earth/curseofrust"
+license = "AGPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

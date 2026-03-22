@@ -1,23 +1,23 @@
 [package]
 name = "curseofrust-console"
-version = "0.1.1"
-edition = "2021"
 authors = ["Jiening Yu <jiening.yu@outlook.com>"]
 description = "TUI/CLI implementation of curseofrust client"
-repository = "https://codeberg.org/DM-Earth/curseofrust"
-license = "AGPL-3.0-or-later"
 keywords = []
 categories = ["games"]
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-curseofrust = "0.1"
-curseofrust-cli-parser = { version = "0.1", features = ["net-proto"] }
-curseofrust-msg = { version = "0.1", optional = true }
-curseofrust-net-foundation = { version = "0.1", optional = true }
+curseofrust = { path = "../" }
+curseofrust-cli-parser = { path = "../cli", features = ["net-proto"] }
+curseofrust-msg = { path = "../msg", optional = true }
+curseofrust-net-foundation = { path = "../net-foundation", optional = true }
 fastrand = "2.3"
-crossterm = { version = "0.28", features = ["event-stream"] }
+crossterm = { version = "0.29.0", features = ["event-stream"] }
 futures-lite = "2.6"
 async-io = "2.4"
 async-executor = { version = "1.3", optional = true }
