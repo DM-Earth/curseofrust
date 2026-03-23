@@ -10,5 +10,5 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-curseofrust = { path = "../" }
+curseofrust = { path = "../", version = "0.1" }
 bytemuck = "1.21"
