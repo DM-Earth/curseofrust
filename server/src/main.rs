@@ -1,5 +1,5 @@
 use std::{
-    cell::{Cell, RefCell, UnsafeCell},
+    cell::{RefCell, UnsafeCell},
     fmt::Debug,
     net::SocketAddr,
     time::{Duration, SystemTime},
@@ -22,7 +22,6 @@ struct Client<'sock> {
     addr: SocketAddr,
     pl: Player,
     socket: UnsafeCell<Connection<'sock>>,
-    reads: Cell<usize>,
 }
 
 fn main() -> Result<(), DirectBoxedError> {
@@ -50,12 +49,6 @@ fn main() -> Result<(), DirectBoxedError> {
         });
     };
 
-    let addr: SocketAddr = (
-        local_ip_address::local_ip().or_else(|_| local_ip_address::local_ipv6())?,
-        port,
-    )
-        .into();
-
     let protocol = match protocol {
         curseofrust_cli_parser::Protocol::Tcp => Protocol::Tcp,
         curseofrust_cli_parser::Protocol::Udp => Protocol::Udp,
@@ -68,18 +61,39 @@ fn main() -> Result<(), DirectBoxedError> {
         }
     };
 
-    let handle = Handle::bind(addr, protocol)?;
-    let listener = handle.listen()?;
+    let addr_local: SocketAddr = (
+        #[cfg(feature = "prefer-ipv6")]
+        std::net::Ipv6Addr::LOCALHOST,
+        #[cfg(not(feature = "prefer-ipv6"))]
+        std::net::Ipv4Addr::LOCALHOST,
+        port,
+    )
+        .into();
+    let handle_local = Handle::bind(addr_local, protocol)?;
+    let listener_local = handle_local.listen()?;
+    println!("[LOBBY] server listening on socket {}", addr_local);
+
+    let addr_lan: SocketAddr = (
+        #[cfg(feature = "prefer-ipv6")]
+        local_ip_address::local_ipv6().or_else(|_| local_ip_address::local_ip())?,
+        #[cfg(not(feature = "prefer-ipv6"))]
+        local_ip_address::local_ip().or_else(|_| local_ip_address::local_ipv6())?,
+        port,
+    )
+        .into();
+    let handle_lan = Handle::bind(addr_lan, protocol)?;
+    let listener_lan = handle_lan.listen()?;
+    println!("[LOBBY] server listening on socket {}", addr_lan);
 
     let mut cl: Vec<Client<'_>> = vec![];
 
     let mut c2s_buf = [0u8; C2S_SIZE];
 
-    println!("[LOBBY] server listening on socket {}", addr);
-
     futures_lite::future::block_on(async {
         'lobby: loop {
-            let Ok((mut connection, peer)) = listener.accept().await else {
+            let Ok((mut connection, peer)) =
+                futures_lite::future::or(listener_local.accept(), listener_lan.accept()).await
+            else {
                 continue;
             };
             if let Ok(nread) = connection.recv(&mut c2s_buf).await {
@@ -91,7 +105,6 @@ fn main() -> Result<(), DirectBoxedError> {
                             pl: Player(id + 1),
                             id,
                             socket: UnsafeCell::new(connection),
-                            reads: Cell::new(0),
                         });
 
                         println!("[LOBBY] client{}@{} connected", id, peer);
@@ -113,6 +126,10 @@ fn main() -> Result<(), DirectBoxedError> {
     let st = RefCell::new(State::new(b_opt)?);
     let mut time = 0i32;
     let executor = LocalExecutor::new();
+
+    for client in cl.iter() {
+        executor.spawn(recv_fut(client, &st)).detach();
+    }
 
     futures_lite::future::block_on(executor.run(async {
         loop {
@@ -149,13 +166,6 @@ fn main() -> Result<(), DirectBoxedError> {
                 }
             }
 
-            for client in cl.iter() {
-                let reads = client.reads.get();
-                if reads < 2 {
-                    client.reads.set(reads + 1);
-                    executor.spawn(recv_fut(client, &st)).detach();
-                }
-            }
             timer.await;
         }
     }));
@@ -166,24 +176,33 @@ fn main() -> Result<(), DirectBoxedError> {
 async fn recv_fut(cl: &Client<'_>, st: &RefCell<State>) {
     let mut buf = [0u8; C2S_SIZE];
     let sptr = cl.socket.get();
-    match unsafe { (*sptr).recv(&mut buf).await } {
-        Ok(C2S_SIZE) => {
-            let (&msg, od) = buf
-                .split_first()
-                .expect("the buffer should longer than one byte");
-            let data: C2SData = *bytemuck::from_bytes(od);
-            let mut st = st.borrow_mut();
-            if let Err(e) = curseofrust_msg::apply_c2s_msg(&mut st, cl.pl, msg, data) {
-                eprintln!("[PLAY] error performing action for player{}: {}", cl.id, e)
+    loop {
+        match unsafe { (*sptr).recv(&mut buf).await } {
+            Ok(C2S_SIZE) => {
+                let (&msg, od) = buf
+                    .split_first()
+                    .expect("the buffer should be longer than one byte");
+                let data: C2SData = *bytemuck::from_bytes(od);
+                let mut st = st.borrow_mut();
+                if let Err(e) = curseofrust_msg::apply_c2s_msg(&mut st, cl.pl, msg, data) {
+                    eprintln!("[PLAY] error performing action for player{}: {}", cl.id, e)
+                }
+            }
+            Ok(0) => {
+                println!("[PLAY] client{} disconnected", cl.id);
+                return;
+            }
+            Ok(nread) => eprintln!(
+                "[PLAY] error recv packet from client{}, expected {} bytes, have {}",
+                cl.id, C2S_SIZE, nread
+            ),
+            Err(err) => {
+                eprintln!("[PLAY] error recv packet from client{}: {}", cl.id, err);
+                println!("[PLAY] client{} disconnected", cl.id);
+                return;
             }
         }
-        Err(_) | Ok(0) => {}
-        Ok(nread) => eprintln!(
-            "[PLAY] error recv packet from client{}, expected {} bytes, have {}",
-            cl.id, C2S_SIZE, nread
-        ),
     }
-    cl.reads.set(cl.reads.get() - 1);
 }
 
 struct DirectBoxedError {

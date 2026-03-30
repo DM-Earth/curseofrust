@@ -26,3 +26,4 @@ local-ip-address = "0.6"
 
 [features]
 ws = ["curseofrust-net-foundation/ws"]
+prefer-ipv6 = []
