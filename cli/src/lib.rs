@@ -1,4 +1,8 @@
-use std::{cmp::max, ffi::OsStr, net::SocketAddr};
+use std::{
+    cmp::max,
+    ffi::OsStr,
+    net::{IpAddr, SocketAddr},
+};
 
 use curseofrust::state::{BasicOpts, MultiplayerOpts};
 
@@ -83,6 +87,21 @@ impl std::str::FromStr for ControlMode {
     }
 }
 
+struct ServerAddr(SocketAddr);
+
+impl std::str::FromStr for ServerAddr {
+    type Err = std::net::AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<SocketAddr>()
+            .or_else(|_| {
+                s.parse::<IpAddr>()
+                    .map(|addr| (addr, DEFAULT_SERVER_PORT).into())
+            })
+            .map(Self)
+    }
+}
+
 pub fn parse_to_options<I, S>(args: I) -> Result<Options, Error>
 where
     I: IntoIterator<Item = S>,
@@ -145,7 +164,7 @@ where
                         };
                     }
                     'C' => {
-                        let parsed = parse!("-C", "SocketAddr")?;
+                        let ServerAddr(parsed) = parse!("-C", "SocketAddr")?;
                         if let MultiplayerOpts::Client { ref mut server, .. } = multiplayer_opts {
                             *server = parsed;
                         } else {
