@@ -1,8 +1,8 @@
 [package]
 name = "curseofrust"
 authors = [
-    "C191239 <zhushunzhong2025@i.pkuschool.edu.cn>",
-    "Jiening Yu <jiening.yu@outlook.com>",
+  "C191239 <zhushunzhong2025@i.pkuschool.edu.cn>",
+  "Jiening Yu <jiening.yu@outlook.com>",
 ]
 description = "Tiny RTS game where you struggle with bots or friends"
 keywords = []

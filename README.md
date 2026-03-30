@@ -23,7 +23,7 @@ Curseofrust supports following networking protocols:
 
 - `udp`: Fully compatible with curseofwar protocol.
 - `tcp`
-- `ws`: Work-in-progress WebSocket support.
+- `ws`: ~~Work-in-progress~~(works now!) WebSocket support.
 
 ## Arguments
 
