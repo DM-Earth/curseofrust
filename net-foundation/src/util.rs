@@ -23,9 +23,9 @@ pub(crate) fn err_ws2io(err: unisock_smol_tungstenite::WsError) -> std::io::Erro
             "(ws) write buffer full: the message length is {}",
             msg.len()
         )),
-        unisock_smol_tungstenite::WsError::Utf8 => std::io::Error::new(
+        unisock_smol_tungstenite::WsError::Utf8(msg) => std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "(ws) utf8 error: invalid utf8 string",
+            format!("(ws) utf8 error: invalid utf8 string: {msg}"),
         ),
         unisock_smol_tungstenite::WsError::AttackAttempt => {
             std::io::Error::other("(ws) attack attempt: the peer is trying to attack the server")
@@ -34,7 +34,14 @@ pub(crate) fn err_ws2io(err: unisock_smol_tungstenite::WsError) -> std::io::Erro
             std::io::ErrorKind::InvalidInput,
             format!("(ws) url error: {}", err),
         ),
-        unisock_smol_tungstenite::WsError::Http(_) => std::io::Error::other("(ws) http error"),
+        unisock_smol_tungstenite::WsError::Http(resp) => std::io::Error::other(format!(
+            "(ws) http error: {}",
+            resp.body()
+                .as_deref()
+                .map_or(std::borrow::Cow::Borrowed(""), |body| {
+                    String::from_utf8_lossy(body)
+                }),
+        )),
         unisock_smol_tungstenite::WsError::HttpFormat(err) => std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("(ws) http format error: {}", err),
