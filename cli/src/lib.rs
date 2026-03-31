@@ -102,6 +102,11 @@ impl std::str::FromStr for ServerAddr {
     }
 }
 
+#[derive(Default)]
+struct ModifiedMarkers {
+    width: bool,
+}
+
 pub fn parse_to_options<I, S>(args: I) -> Result<Options, Error>
 where
     I: IntoIterator<Item = S>,
@@ -111,6 +116,7 @@ where
     let mut multiplayer_opts = MultiplayerOpts::default();
     let mut exit = false;
     let mut cm = ControlMode::default();
+    let mut mm = ModifiedMarkers::default();
 
     #[cfg(feature = "net-proto")]
     let mut protocol = Protocol::default();
@@ -138,7 +144,12 @@ where
                     };
                 }
                 match flag {
-                    'W' => basic_opts.width = parse!("-W", "integer")?,
+                    'W' => {
+                        basic_opts.width = {
+                            mm.width = true;
+                            max(parse!("-W", "integer")?, 15)
+                        }
+                    }
                     // Minimum height.
                     'H' => basic_opts.height = max(parse!("-H", "integer")?, 5),
                     'S' => basic_opts.shape = parse!("-S", "shape", Stencil)?.0,
@@ -208,8 +219,8 @@ where
         }
     }
 
-    // Fix a weird bug.
-    if basic_opts.shape == curseofrust::grid::Stencil::Rect {
+    if !mm.width && basic_opts.shape == curseofrust::grid::Stencil::Rect {
+        // make rect more elegant this way
         basic_opts.width += 10;
     }
 
