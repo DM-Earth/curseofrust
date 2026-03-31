@@ -28,6 +28,7 @@ fn main() -> Result<(), DirectBoxedError> {
         basic: b_opt,
         multiplayer: m_opt,
         exit,
+        #[cfg(feature = "multiplayer")]
         protocol,
         control_mode,
         ..

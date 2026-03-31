@@ -13,9 +13,7 @@ license.workspace = true
 
 [dependencies]
 curseofrust = { path = "../", version = "0.1" }
-curseofrust-cli-parser = { path = "../cli", features = [
-  "net-proto",
-], version = "0.1" }
+curseofrust-cli-parser = { path = "../cli", version = "0.1" }
 curseofrust-msg = { path = "../msg", version = "0.1", optional = true }
 curseofrust-net-foundation = { path = "../net-foundation", version = "0.1", optional = true }
 fastrand = "2.3"
@@ -32,5 +30,6 @@ multiplayer = [
   "dep:local-ip-address",
   "dep:async-executor",
   "dep:curseofrust-net-foundation",
+  "curseofrust-cli-parser/net-proto",
 ]
 ws = ["multiplayer", "curseofrust-net-foundation/ws"]
