@@ -7,13 +7,12 @@ authors = [
 description = "Tiny RTS game where you struggle with bots or friends"
 keywords = []
 categories = ["games"]
-version.workspace = true
+version = "0.1.2"
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
 
 [workspace.package]
-version = "0.1.2"
 edition = "2021"
 repository = "https://codeberg.org/DM-Earth/curseofrust"
 license = "AGPL-3.0-or-later"
