@@ -11,11 +11,13 @@ version = "0.1.2"
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [workspace.package]
 edition = "2021"
 repository = "https://codeberg.org/DM-Earth/curseofrust"
 license = "AGPL-3.0-or-later"
+rust-version = "1.78.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

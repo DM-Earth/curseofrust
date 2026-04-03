@@ -8,6 +8,7 @@ version = "0.1.2"
 edition.workspace = true
 repository.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 curseofrust = { path = "../", version = "0.1" }
