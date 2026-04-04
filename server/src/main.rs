@@ -6,7 +6,6 @@ use std::{
 };
 
 use async_executor::LocalExecutor;
-use async_notify::Notify;
 use curseofrust::{
     state::{MultiplayerOpts, State},
     Player, Speed,
@@ -14,6 +13,7 @@ use curseofrust::{
 use curseofrust_cli_parser::Options;
 use curseofrust_msg::{bytemuck, C2SData, S2CData, C2S_SIZE, S2C_SIZE};
 use curseofrust_net_foundation::{Connection, Handle, Listener, Protocol};
+use event_listener::Event;
 
 const DURATION: Duration = Duration::from_millis(10);
 
@@ -25,7 +25,7 @@ struct Client<'sock> {
 
     socket: UnsafeCell<Connection<'sock>>,
     socket_available: Cell<bool>,
-    available_notify: Notify,
+    available_event: Event,
 }
 
 fn main() -> Result<(), DirectBoxedError> {
@@ -110,7 +110,7 @@ fn main() -> Result<(), DirectBoxedError> {
                             id,
                             socket: UnsafeCell::new(connection),
                             socket_available: Cell::new(true),
-                            available_notify: Notify::new(),
+                            available_event: Event::new(),
                         });
 
                         println!("[LOBBY] client{}@{} connected", id, peer);
@@ -199,7 +199,7 @@ async fn catch_up<'sock>(
         {
             println!("[PLAY] client{}@{} reconnected", client.id, peer);
             unsafe { *client.socket.get() = connection };
-            client.available_notify.notify();
+            client.available_event.notify(1usize);
         }
     }
 }
@@ -209,6 +209,7 @@ async fn recv_from_client(cl: &Client<'_>, st: &RefCell<State>) {
 
     loop {
         let sptr = cl.socket.get();
+        let availability = cl.available_event.listen();
         loop {
             match unsafe { (*sptr).recv(&mut buf).await } {
                 Ok(C2S_SIZE) => {
@@ -237,7 +238,7 @@ async fn recv_from_client(cl: &Client<'_>, st: &RefCell<State>) {
             }
             cl.socket_available.set(false);
         }
-        cl.available_notify.notified().await;
+        availability.await;
     }
 }
 
