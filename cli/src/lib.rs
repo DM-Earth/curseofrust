@@ -322,14 +322,15 @@ impl From<std::net::AddrParseError> for Error {
 
 impl std::error::Error for Error {}
 
-/// The help message for the program.
-pub const HELP_MSG: &str = r#"                                __
+macro_rules! help_msg_basic {
+    () => {
+        r#"                                __
    ____                        /  ]  ________             __
   / __ \_ _ ___ ___ ___    __ _| |_  |  ___  \__  __ ___ _| |__
 _/ /  \/ | |X _/ __/ __\  /   \   /  | |___| | | |  / __/_  __/
 \ X    | | | | |__ | __X  | X || |   | X_  __/ |_|  X__ | | X
  \ \__/\ __X_| \___/___/  \___/| |   | | \ \_ X__ /___ /  \__/
-  \____/                       |/    |_\  \__/
+  \____/                       |/    |__\ \__/
 
   Made by DM Earth in 2024-2025.
 
@@ -387,5 +388,26 @@ _/ /  \/ | |X _/ __/ __\  /   \   /  | |___| | | |  / __/_  __/
   Display the version number
 
 -h
-  Display this help
-"#;
+  Display this help"#
+    };
+}
+
+#[cfg(feature = "net-proto")]
+macro_rules! help_msg_net_proto {
+    () => {
+        r#"
+
+-p [tcp|udp|ws|websocket]
+  Specify the networking protocol to use in multiplayer (udp is default)."#
+    };
+}
+
+#[cfg(not(feature = "net-proto"))]
+macro_rules! help_msg_net_proto {
+    () => {
+        ""
+    };
+}
+
+/// The help message for the program.
+pub const HELP_MSG: &str = concat![help_msg_basic!(), help_msg_net_proto!()];
