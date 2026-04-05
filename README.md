@@ -86,6 +86,9 @@ On legacy Mac OS X (10.11 and lower), follow these steps:
 
 1. Get `git`, `rust`, `legacy-support`, and a recent version of `clang` (eg. `clang-18`) via [Macports](https://macports.org).
 2. In Cargo's `config.toml`, set the linker to `clang` (instead of system `ld64`) and statically link to `MacportsLegacySupport`. It is recommended to enable `net.git-fetch-with-cli` as well.
+3. Build and run just like any other Rust projects.
+
+Below is an example `config.toml`:
 
 ```toml
 [target.x86_64-apple-darwin]
@@ -98,5 +101,3 @@ rustflags = [
 [net]
 git-fetch-with-cli = true
 ```
-
-1. Build and run just like any other Rust projects.
